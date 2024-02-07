@@ -79,7 +79,9 @@
       }} {{ form.full_name.label }} {{ form.full_name() }} {{
       form.department.label }} {{ form.department() }} {{ form.company.label }}
       {{ form.company() }} {{ form.photos.label }} {{ form.photos(multiple=True)
-      }} {{ form.video.label }} {{ form.video() }} {{ form.submit() }}
+      }} {{ form.video.label }} {{ form.video() }} 
+      {{ form.description.label }} {{ form.description() }}
+      {{ form.submit() }}
     </form>
     <script>
       // Save input values in case the browser loads

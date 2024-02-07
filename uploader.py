@@ -12,15 +12,16 @@ import logging
 from datetime import datetime
 from flask import redirect, request, session
 import asyncio
+# import counter
 
 # Filepaths
 # os.path.join("uploads", "photos")
 # os.path.join("uploads", "video")
 # resolve path to thianhdep_submissions.csv in ./data/thianhdep_submissions.csv
 data_filepath = os.path.join("data", "thianhdep_submissions.csv")
-media_filepath = os.path.join("uploads")
-# print(data_filepath)
 
+# print(data_filepath)
+# counter.initialize_db()
 
 def FileMaxSizeMB(max_size: int):
     def _file_max_size(form: FlaskForm, field):
@@ -54,6 +55,7 @@ class UploadForm(FlaskForm):
             FileMaxSizeMB(500),
         ],
     )  # FileMaxSizeMB(500)
+    description = FileField("Description", validators=[FileAllowed(["txt", "docx", "pdf"])])
     submit = SubmitField(label="Submit")
 
 
@@ -67,6 +69,23 @@ class UploadForm(FlaskForm):
 # symmetric_key = Fernet.generate_key()
 # cipher_suite = Fernet(symmetric_key)
 
+def increment(counter_filepath: str):
+        with open(counter_filepath, 'r+') as f:
+            counter = f.read()
+            print('counter', counter)
+            counter = int(counter) if counter else 0
+            counter += 1
+            f.seek(0)
+            f.write(str(counter))
+            f.truncate()
+        return str(counter)
+
+# get the current counter value
+def get_counter(counter_filepath: str):
+    with open(counter_filepath, 'r') as f:
+        counter = f.read()
+        return counter
+
 # app starts here
 app = Flask(__name__)
 # Set up logging
@@ -76,30 +95,55 @@ app.config["SECRET_KEY"] = "your_secret_key"
 app.config["UPLOADED_FILES_DEST"] = "./uploads"
 
 # handle media file uploads
-async def handle_media_files(employee_id, full_name, photos, video):
-    # generate timestamp: `YYMMDDHHmmss`
-    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+async def handle_media_files(submission_id, employee_id, full_name, photos, video, description):
     # generate directory name: `uploads/employee_id_timestamp`
     dirname = f"{employee_id}_{full_name}"
-    # create directory if not exists
-    media_submission = os.path.join(media_filepath, dirname)
-    os.makedirs(media_submission, exist_ok=True)
+    os.makedirs(os.path.join("uploads", dirname), exist_ok=True)
+    # generate timestamp: `YYMMDDHHmmss`
+    timestamp = datetime.now().strftime("%y%m%d%H%M%S")
+
     # handle photos, write to media_submission
     if photos is not None:
         await asyncio.gather(
-            *(save_file(photo, media_submission, timestamp) for photo in photos)
+            *(save_file(photo, dirname, timestamp, submission_id) for photo in photos)
         )
     # handle video
     if video is not None:
         # save video to media_submission with this format: `{timestamp}_{filename}`
-        await save_file(video, media_submission, timestamp)
+        await save_file(video, dirname, timestamp, submission_id)
+
+    # handle description
+    if description is not None:
+        await save_file(description, dirname, timestamp, submission_id)
 
 
-async def save_file(file, media_submission, timestamp):
-    if file is not None and file.filename != "":
-        filename = f"{timestamp}_{secure_filename(file.filename)}"
-        file.save(os.path.join(media_submission, filename))
+async def save_file(file, dirname: str, timestamp: str, submission_id: str):
+    try:
+        if file is not None and file.filename != "":
+            filename = f"{timestamp}_{secure_filename(file.filename)}"
+            filepath = os.path.join(os.path.join("uploads", dirname), filename)
+            created = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            media_id = increment(os.path.join("data", "media_counter.txt"))
 
+            # counter.increment_counter('media_counter')
+            # media_id = counter.get_counter('media_counter')
+
+            # append a new record to media_mapping.csv
+            with open("data/media_mapping.csv", "a", newline="") as f:
+                writer = csv.writer(f)
+                # media_id,dirname,filename,created,filepath,submission_id
+                writer.writerow([media_id, dirname, filename, created, filepath, submission_id])
+            # return filepath to the saved file
+            
+            # save file
+            file.save(filepath)
+
+            return filepath
+
+            
+    except Exception as e:
+        print(f"Error saving file: {str(e)}")
+        return None
 
 # Error handling
 # display error message to user as an html element
@@ -111,23 +155,30 @@ for each submit, create a new record in the csv file
 
 # Check form_data input
 async def submit_handler(form_data: dict):
-    employee_id = form_data["employee_id"]
-    full_name = form_data["full_name"]
-    department = form_data["department"]
-    company = form_data["company"]
+    # Sanitize input with secure_filename for all string fields
+    employee_id = secure_filename(form_data["employee_id"])
+    full_name = secure_filename(form_data["full_name"]) 
+    department = secure_filename(form_data["department"])    
+    company = secure_filename(form_data["company"])            
     photos = form_data["photos"]
     video = form_data["video"]
+    description = form_data["description"]
     # generate timestamp for each submission
     created = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print("photos", photos)
+    submission_id = increment(os.path.join("data", "submission_counter.txt"))
+
+    # counter.increment_counter('submission_counter')
+    # submission_id = counter.get_counter('submission_counter')
+
+
+    # handle media files
+    await handle_media_files(submission_id, employee_id, full_name, photos, video, description)
 
     with open(data_filepath, "a", newline="") as file:
         writer = csv.writer(file)
         # write new record (row) to csv file
-        writer.writerow([employee_id, full_name, department, company, created])
+        writer.writerow([submission_id, employee_id, full_name, department, company, created])
 
-    # handle media files
-    await handle_media_files(employee_id, full_name, photos, video)
 
 
 """Notes:
@@ -150,6 +201,8 @@ def upload_file():
         # error handling
         else:
             session["notif"] = form.errors
+    
+    
     return render_template("upload.html", form=form, notif=notif)
 
 
