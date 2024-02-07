@@ -1,72 +1,98 @@
 <!DOCTYPE html>
-<html>
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-            /* Custom CSS styles */
-            body {
-                font-family: Arial, sans-serif;
-                margin: 0;
-                padding: 20px;
-            }
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      /* Custom CSS styles */
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 20px;
+      }
 
-            form {
-                max-width: 400px;
-                margin: 0 auto;
-            }
+      form {
+        max-width: 400px;
+        margin: 0 auto;
+      }
 
-            label {
-                display: block;
-                margin-bottom: 10px;
-            }
+      label {
+        display: block;
+        margin-bottom: 10px;
+      }
 
-            input[type='text'] {
-                width: 100%;
-                padding: 10px;
-                margin-bottom: 20px;
-            }
+      input[type='text'] {
+        width: 100%;
+        padding: 10px;
+        margin-bottom: 20px;
+      }
 
-            input[type='file'] {
-                margin-bottom: 20px;
-            }
+      input[type='file'] {
+        margin-bottom: 20px;
+      }
 
-            input[type='submit'] {
-                background-color: #4caf50;
-                color: white;
-                padding: 10px 20px;
-                border: none;
-                cursor: pointer;
-            }
+      input[type='submit'] {
+        background-color: #4caf50;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        cursor: pointer;
+      }
 
-            input[type='submit']:hover {
-                background-color: #45a049;
-            }
-        </style>
-    </head>
-    <body>
-        <form method="POST" enctype="multipart/form-data">
-            {{ form.hidden_tag() }} 
-            {{ form.employee_id.label }} {{ form.employee_id() }}
-            {{ form.full_name.label }} {{ form.full_name() }} 
-            {{ form.department.label }} {{ form.department() }} 
-            {{ form.company.label }} {{ form.company() }}
-            {{ form.photos.label }} {{ form.photos(multiple=True) }}
-            {{ form.video.label }} {{ form.video() }}
-            {{ form.submit() }}
-        </form>
-        <script>
-            // Save input values in case the browser loads
-            window.addEventListener('load', function () {
-                var inputs = document.querySelectorAll('input[type="text"]')
-                for (var i = 0; i < inputs.length; i++) {
-                    var input = inputs[i]
-                    input.value = localStorage.getItem(input.id)
-                    input.addEventListener('input', function () {
-                        localStorage.setItem(this.id, this.value)
-                    })
-                }
-            })
-        </script>
-    </body>
+      input[type='submit']:hover {
+        background-color: #45a049;
+      }
+      div .alert {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        padding: 10px;
+        background-color: #4caf50;
+        color: white;
+        text-align: center;
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- notif div -->
+    {% if notif %}
+    <div class="alert">
+        <ul>
+            {% for field, errors in notif.items() %} {% for error in errors %}
+            <li>{{ field }}: {{ error }}</li>
+            {% endfor %} {% endfor %}
+        </ul>
+    </div>
+    <script>
+        // Hide the notification after 5 seconds
+        setTimeout(function() {
+            var alertDiv = document.querySelector('.alert');
+            alertDiv.style.display = 'none';
+        }, 5000);
+    </script>
+    </div>
+    {% endif %}
+    <form method="POST" enctype="multipart/form-data">
+      {{ form.hidden_tag() }} {{ form.employee_id.label }} {{ form.employee_id()
+      }} {{ form.full_name.label }} {{ form.full_name() }} {{
+      form.department.label }} {{ form.department() }} {{ form.company.label }}
+      {{ form.company() }} {{ form.photos.label }} {{ form.photos(multiple=True)
+      }} {{ form.video.label }} {{ form.video() }} {{ form.submit() }}
+    </form>
+    <script>
+      // Save input values in case the browser loads
+      window.addEventListener('load', function () {
+        var inputs = document.querySelectorAll('input[type="text"]')
+        for (var i = 0; i < inputs.length; i++) {
+          var input = inputs[i]
+          input.value = localStorage.getItem(input.id)
+          input.addEventListener('input', function () {
+            localStorage.setItem(this.id, this.value)
+          })
+        }
+      })
+    </script>
+  </body>
 </html>
