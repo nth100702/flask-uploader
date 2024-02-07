@@ -1,0 +1,5 @@
+Phase 1: Local uploads & data validation => done
+Phase 2: OneDrive uploads & encryption
+Phase 3: Containerziation, production server & load balancing implementations
+Phase 4: Frontend finalization & deployment
+Phase 5: UAT & video/image processing implementation (ensure no malware is uploaded)

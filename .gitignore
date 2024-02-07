@@ -8,3 +8,7 @@ htmlcov/
 docs/_build/
 dist/
 venv/
+
+# ignore data
+*.csv
+uploads/**/*
