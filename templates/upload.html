@@ -1,61 +1,6 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <style>
-      /* Custom CSS styles */
-      body {
-        font-family: Arial, sans-serif;
-        margin: 0;
-        padding: 20px;
-      }
+{% extends "base.html" %}
 
-      form {
-        max-width: 400px;
-        margin: 0 auto;
-      }
-
-      label {
-        display: block;
-        margin-bottom: 10px;
-      }
-
-      input[type='text'] {
-        width: 100%;
-        padding: 10px;
-        margin-bottom: 20px;
-      }
-
-      input[type='file'] {
-        margin-bottom: 20px;
-      }
-
-      input[type='submit'] {
-        background-color: #4caf50;
-        color: white;
-        padding: 10px 20px;
-        border: none;
-        cursor: pointer;
-      }
-
-      input[type='submit']:hover {
-        background-color: #45a049;
-      }
-      div .alert {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        padding: 10px;
-        background-color: #4caf50;
-        color: white;
-        text-align: center;
-        display: none;
-      }
-    </style>
-  </head>
-  <body>
+{% block content %}
     <!-- notif div -->
     {% if notif %}
     <div class="alert">
@@ -83,6 +28,20 @@
       {{ form.description.label }} {{ form.description() }}
       {{ form.submit() }}
     </form>
+    <form method="POST" action='/upload' class="dropzone dz-clickable" 
+      id="dropper" enctype="multipart/form-data">
+      <div class="dz-message">
+        <span>Drop your photos or videos here</span>
+      </div>
+      <input type="hidden" name="type" value="photos">
+    </form>
+    <form method="POST" action='/upload' class="dropzone dz-clickable" 
+      id="dropper" enctype="multipart/form-data">
+      <div class="dz-message">
+        <span>Drop your videos here</span>
+      </div>
+      <input type="hidden" name="type" value="videos">
+    </form>
     <script>
       // Save input values in case the browser loads
       window.addEventListener('load', function () {
@@ -96,5 +55,4 @@
         }
       })
     </script>
-  </body>
-</html>
+{% endblock %}

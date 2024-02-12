@@ -12,27 +12,13 @@ import logging
 from datetime import datetime
 from flask import redirect, request, session
 import asyncio
-# import counter
+from utils import FileMaxSizeMB
 
 # Filepaths
 # os.path.join("uploads", "photos")
 # os.path.join("uploads", "video")
 # resolve path to thianhdep_submissions.csv in ./data/thianhdep_submissions.csv
 data_filepath = os.path.join("data", "thianhdep_submissions.csv")
-
-# print(data_filepath)
-# counter.initialize_db()
-
-def FileMaxSizeMB(max_size: int):
-    def _file_max_size(form: FlaskForm, field):
-        if field.data:
-            for file in field.data:
-                file_size = len(file.read())
-                if file_size > max_size * 1024 * 1024:
-                    raise ValidationError(f"File size must be less than {max_size}MB")
-                file.seek(0)  # Reset file position to the beginning
-
-    return _file_max_size
 
 
 class UploadForm(FlaskForm):
@@ -187,23 +173,23 @@ Current behavior: When the user uploads a file different from the allowed file t
 """
 
 
-@app.route("/", methods=["GET", "POST"])
-def upload_file():
+# / route for GET request
+@app.route("/", methods=["GET"])
+def show_upload_form():
     form = UploadForm()
     notif = session.pop("notif", None)
-    # Since / route is both GET and POST, we need to handle each case separately
-    if request.method == "POST":
-        if form.validate_on_submit():
-            # print('data_filepath', data_filepath)
-            # print('form.data', form.data)
-            asyncio.run(submit_handler(form.data))
-            return redirect("/success")  # Redirect to success.html
-        # error handling
-        else:
-            session["notif"] = form.errors
-    
-    
     return render_template("upload.html", form=form, notif=notif)
+
+# /upload route for POST request
+@app.route("/upload", methods=["POST"])
+def handle_upload():
+    form = UploadForm()
+    if form.validate_on_submit():
+        asyncio.run(submit_handler(form.data))
+        return redirect("/success")  # Redirect to success.html
+    else:
+        session["notif"] = form.errors
+        return redirect("/")  # Redirect back to the upload form
 
 
 # /success route
