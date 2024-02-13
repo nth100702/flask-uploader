@@ -1,58 +1,83 @@
 {% extends "base.html" %}
-
 {% block content %}
-    <!-- notif div -->
-    {% if notif %}
-    <div class="alert">
-        <ul>
-            {% for field, errors in notif.items() %} {% for error in errors %}
-            <li>{{ field }}: {{ error }}</li>
-            {% endfor %} {% endfor %}
-        </ul>
-    </div>
-    <script>
-        // Hide the notification after 5 seconds
-        setTimeout(function() {
-            var alertDiv = document.querySelector('.alert');
-            alertDiv.style.display = 'none';
-        }, 5000);
-    </script>
-    </div>
-    {% endif %}
-    <form method="POST" enctype="multipart/form-data">
-      {{ form.hidden_tag() }} {{ form.employee_id.label }} {{ form.employee_id()
-      }} {{ form.full_name.label }} {{ form.full_name() }} {{
-      form.department.label }} {{ form.department() }} {{ form.company.label }}
-      {{ form.company() }} {{ form.photos.label }} {{ form.photos(multiple=True)
-      }} {{ form.video.label }} {{ form.video() }} 
-      {{ form.description.label }} {{ form.description() }}
-      {{ form.submit() }}
-    </form>
-    <form method="POST" action='/upload' class="dropzone dz-clickable" 
-      id="dropper" enctype="multipart/form-data">
-      <div class="dz-message">
-        <span>Drop your photos or videos here</span>
-      </div>
-      <input type="hidden" name="type" value="photos">
-    </form>
-    <form method="POST" action='/upload' class="dropzone dz-clickable" 
-      id="dropper" enctype="multipart/form-data">
-      <div class="dz-message">
-        <span>Drop your videos here</span>
-      </div>
-      <input type="hidden" name="type" value="videos">
-    </form>
-    <script>
-      // Save input values in case the browser loads
-      window.addEventListener('load', function () {
-        var inputs = document.querySelectorAll('input[type="text"]')
-        for (var i = 0; i < inputs.length; i++) {
-          var input = inputs[i]
-          input.value = localStorage.getItem(input.id)
-          input.addEventListener('input', function () {
-            localStorage.setItem(this.id, this.value)
-          })
+
+<form method="POST" action='/upload' class="dropzone dz-clickable" id="dropper" enctype="multipart/form-data">
+</form>
+<script type="application/javascript">
+  // check if all entries fields are filled
+  // var entriesForm = document.getElementById('entries');
+  // var dropperForm = document.getElementById('dropper');
+  // // initially hide the dropper form
+  // dropperForm.style.display = 'none';
+  // // upon every input, check if all fields are filled
+  // entriesForm.addEventListener('input', function () {
+  //   var allFilled = true;
+  //   var inputs = entriesForm.querySelectorAll('#ma_nhan_vien, #ho_ten, #don_vi');
+  //   inputs.forEach(function (input) {
+  //     if (input.value === '') {
+  //       allFilled = false;
+  //     }
+  //   });
+
+  //   if (allFilled) {
+  //     dropperForm.style.display = 'block';
+  //   } else {
+  //     dropperForm.style.display = 'none';
+  //   }
+  // });
+
+  // dropzone config
+  Dropzone.options.dropper = {
+    paramName: 'file',
+    // disable auto processing (uploading) of dropped files
+    autoProcessQueue: false,
+    init: function () {
+      // register custom event handler on init
+      this.on("init", function () {
+        var submitButton = document.querySelector("#submitBtn");
+        submitButton.addEventListener("click", function () {
+          // Get form data
+          var formData = new FormData(document.getElementById('entries'));
+          // Process the queue
+          this.processQueue();
+        });
+      });
+
+      // IMPORTANT: Only accepts valid filenames, else remove file from dropzone
+      // fileadded event handler
+      this.on("addedfile", file => {
+        // console.log('added file')
+        // acceptable filenames are in this format: letter*-numeric*-letter*-letter*
+        // where * happens 0 or more times
+        regex = /GML-0001-NguyenVoMinhLuan-TacPhamDuThi/
+        if (!regex.test(file.name)) {
+          // this.removeFile(file);
+          // show dropzone error message
+          this.emit('error', file, 'Tên file không hợp lệ');
+          // wait for 3s then remove file from dropzone
+          setTimeout(() => {
+            this.removeFile(file);
+          }, 3000);
         }
-      })
-    </script>
+      });
+    },
+    chunking: true,
+    forceChunking: true,
+    url: '/upload',
+    maxFilesize: 500,
+    chunkSize: 5000000, // in bytes: 1000000 bytes = 1MB
+    // accepts images, video, and text formats
+    acceptedFiles: 'image/*, video/*, text/*',
+    dictDefaultMessage: "Kéo thả file vào đây hoặc click để chọn file",
+    dictFileTooBig: "File quá lớn ({{filesize}}MB). Kích thước tối đa: {{maxFilesize}}MB.",
+    dictInvalidFileType: "Chỉ chấp nhận file ",
+    dictResponseError: "Lỗi server",
+    dictCancelUpload: "Hủy",
+    dictCancelUploadConfirmation: "Bạn có chắc chắn muốn hủy upload?",
+    dictRemoveFile: "Xóa",
+    dictFileTooBig: "File quá lớn",
+  }
+</script>
+
+<button type="submit" id="submitBtn" class="btn btn-primary">Nộp bài dự thi</button>
 {% endblock %}

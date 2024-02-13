@@ -1,0 +1,23 @@
+<!-- extends base -->
+{% extends "base.html" %}
+<!-- starts block content -->
+{% block content %}
+<!-- notif div -->
+{% if notif %}
+<div class="alert">
+  <ul>
+    {% for field, errors in notif.items() %} {% for error in errors %}
+    <li>{{ field }}: {{ error }}</li>
+    {% endfor %} {% endfor %}
+  </ul>
+</div>
+<script>
+  // Hide the notification after 5 seconds
+  setTimeout(function () {
+    var alertDiv = document.querySelector('.alert');
+    alertDiv.style.display = 'none';
+  }, 5000);
+</script>
+{% endif %}
+<!-- end block content -->
+{% endblock %}
