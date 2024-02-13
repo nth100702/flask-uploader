@@ -27,12 +27,6 @@ app.config['SQLALCHEMY_DATABASE_URI'] =\
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-# Filepaths
-# os.path.join("uploads", "photos")
-# os.path.join("uploads", "video")
-# resolve path to thianhdep_submissions.csv in ./data/thianhdep_submissions.csv
-data_filepath = os.path.join("data", "thianhdep_submissions.csv")
-
 # class EntryForm(FlaskForm):
 #     ma_nhan_vien = StringField("Mã nhân viên", validators=[DataRequired()])
 #     ho_ten = StringField("Họ tên", validators=[DataRequired()])
@@ -51,6 +45,7 @@ def handle_upload():
     print(request.form)
     # print request.files
     print(request.files)
+    print(request.get)
     # files = request.files.get("file")
     return
 

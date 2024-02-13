@@ -33,22 +33,17 @@
     autoProcessQueue: false,
     init: function () {
       // register custom event handler on init
-      this.on("init", function () {
-        var submitButton = document.querySelector("#submitBtn");
-        submitButton.addEventListener("click", function () {
-          // Get form data
-          var formData = new FormData(document.getElementById('entries'));
-          // Process the queue
-          this.processQueue();
-        });
+      let submitButton = document.querySelector("#submitBtn");
+      submitButton.addEventListener("click", (e) => {
+        e.preventDefault();
+        // Process the queue
+        this.processQueue();
       });
 
       // IMPORTANT: Only accepts valid filenames, else remove file from dropzone
       // fileadded event handler
       this.on("addedfile", file => {
-        // console.log('added file')
-        // acceptable filenames are in this format: letter*-numeric*-letter*-letter*
-        // where * happens 0 or more times
+        // TO-DO: validate file name
         regex = /GML-0001-NguyenVoMinhLuan-TacPhamDuThi/
         if (!regex.test(file.name)) {
           // this.removeFile(file);
@@ -80,4 +75,5 @@
 </script>
 
 <button type="submit" id="submitBtn" class="btn btn-primary">Nộp bài dự thi</button>
+
 {% endblock %}
