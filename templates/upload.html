@@ -24,6 +24,7 @@
           {{ form.recaptcha.label(class="form-control-label") }} {{
           form.recaptcha(class="form-control") }}
         </div>
+        <input type="hidden" id="submitId" name="submitId" value="">
       </form>
     </div>
     <div class="">
@@ -57,7 +58,7 @@
           allFilled = false
         }
       })
-      
+
       if (allFilled) {
         submitButton.disabled = false
         submitButton.classList.remove('cursor-not-allowed')
@@ -88,8 +89,19 @@
     init: function () {
       // Has to register custom submit handler for dropzone within init function as required by the declarative approach
       let submitButton = document.querySelector('#submitBtn')
+
+      function generateSubmitId() {
+        // to generate IDs, avoid using Math.random() => security risk
+        // use Web Crypto API instead, https://developer.mozilla.org/en-US/docs/Web/API/Crypto/getRandomValues
+        // web scripto -> 2 approaches: generate random array buffer value or use randomUUID
+        return window.crypto.randomUUID()
+      }
       submitButton.addEventListener('click', (e) => {
         e.preventDefault()
+        // generate submit ID on frontend request
+        let submitId = generateSubmitId();
+        console.log('submitId', submitId);
+        document.getElementById('submitId').value = submitId;
         // Process the queue
         this.processQueue()
         // redirects to /success upon successful upload
@@ -139,7 +151,7 @@
     retryChunks: true,
     retryChunksLimit: 3,
     url: '/upload',
-    maxFilesize: 40,
+    maxFilesize: 500,
     // accepts images, video, and text formats
     acceptedFiles:
       '.png, .jpg, .jpeg, .gif, .mp4, .avi, .mov, .pdf, .doc, .docx', // avoid .txt (text files) which includes scripts etc.
