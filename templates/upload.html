@@ -2,16 +2,11 @@
 <!-- <div class="col g-3"> -->
 <div class="flex flex-col items-center">
   <div
-    class="flex flex-col items-center max-w-sm p-6 bg-white border border-gray-200 rounded-lg shadow hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-gray-700"
-  >
+    class="flex flex-col items-center max-w-sm p-6 bg-white border border-gray-200 rounded-lg shadow hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-gray-700">
     <div class="">
-      <form
-        method="POST"
-        action="/upload"
+      <form method="POST" action="/upload"
         class="dropzone dz-clickable block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400"
-        id="dropper"
-        enctype="multipart/form-data"
-      >
+        id="dropper" enctype="multipart/form-data">
         {{ form.hidden_tag() }}
         <div class="form-group row">
           {{ form.ma_nhan_vien.label(class="form-control-label") }} {{
@@ -32,11 +27,8 @@
       </form>
     </div>
     <div class="">
-      <button
-        type="submit"
-        id="submitBtn"
-        class="text-white items-center bg-gradient-to-r from-cyan-500 to-blue-500 hover:bg-gradient-to-bl focus:ring-4 focus:outline-none focus:ring-cyan-300 dark:focus:ring-cyan-800 font-medium rounded-lg text-sm px-5 py-2.5 text-center mt-4"
-      >
+      <button type="submit" id="submitBtn"
+        class="text-white items-center bg-gradient-to-r from-cyan-500 to-blue-500 hover:bg-gradient-to-bl focus:ring-4 focus:outline-none focus:ring-cyan-300 dark:focus:ring-cyan-800 font-medium rounded-lg text-sm px-5 py-2.5 text-center mt-4">
         Nộp bài dự thi
       </button>
     </div>
@@ -47,29 +39,31 @@
   document.addEventListener('DOMContentLoaded', (event) => {
     // check if all entries fields are filled
     console.log('DOM fully loaded and parsed')
-    var dropperForm = document.getElementById('dropper')
+    let dropperForm = document.getElementById('dropper')
     // TODO: FIX - get elements with form-group class
-    let entries = document.querySelectorAll('.form-group')
-    console.log(entries)
+    let inputs = document.querySelectorAll('#ma_nhan_vien, #ho_ten, #don_vi')
+    console.log('inputs', inputs)
     // initially disable submitButton
     let submitButton = document.getElementById('submitBtn')
     submitButton.disabled = true
     // append 'cursor-not-allowed' class to submitButton
     submitButton.classList.add('cursor-not-allowed')
     // upon every input, check if all fields are filled
-    entries.addEventListener('input', function () {
+
+    dropperForm.addEventListener('input', function () {
       var allFilled = true
-      var inputs = entries.querySelectorAll('#ma_nhan_vien, #ho_ten, #don_vi')
       inputs.forEach(function (input) {
         if (input.value === '') {
           allFilled = false
         }
       })
-
+      
       if (allFilled) {
         submitButton.disabled = false
+        submitButton.classList.remove('cursor-not-allowed')
       } else {
         submitButton.disabled = true
+        submitButton.classList.add('cursor-not-allowed')
       }
     })
   })
@@ -98,33 +92,43 @@
         e.preventDefault()
         // Process the queue
         this.processQueue()
+        // redirects to /success upon successful upload
+        this.on('success', (file, response) => {
+          window.location.href = '/success'
+          // clear all dropzone files
+          this.removeAllFiles()
+          // clear all input fields
+          document.getElementById('ma_nhan_vien').value = ''
+          document.getElementById('ho_ten').value = ''
+          document.getElementById('don_vi').value = ''
+        })
       })
 
       // IMPORTANT: Only accepts valid filenames, else remove file from dropzone
       // fileadded event handler
       this.on('addedfile', (file) => {
-        let checkPhotoSize = setMaxFileSizeMB(50)
-        let checkVideoSize = setMaxFileSizeMB(500)
-        // TO-DO: validate file size
-        try {
-          checkPhotoSize(file)
-        } catch (error) {
-          this.emit('error', file, error.message)
-          setTimeout(() => {
-            this.removeFile(file)
-          }, 3000)
-        }
+        // let checkPhotoSize = setMaxFileSizeMB(50)
+        // let checkVideoSize = setMaxFileSizeMB(500)
+        // // TO-DO: validate file size
+        // try {
+        //   checkPhotoSize(file)
+        // } catch (error) {
+        //   this.emit('error', file, error.message)
+        //   setTimeout(() => {
+        //     this.removeFile(file)
+        //   }, 3000)
+        // }
         // TO-DO: validate file name
-        regex = /GMD-0001-NguyenVoMinhLuan-TacPhamDuThi/
-        if (!regex.test(file.name)) {
-          // this.removeFile(file);
-          // show dropzone error message
-          this.emit('error', file, 'Tên file không hợp lệ')
-          // wait for 3s then remove file from dropzone
-          setTimeout(() => {
-            this.removeFile(file)
-          }, 3000)
-        }
+        // regex = /GMD-0001-NguyenVoMinhLuan-TacPhamDuThi/
+        // if (!regex.test(file.name)) {
+        //   // this.removeFile(file);
+        //   // show dropzone error message
+        //   this.emit('error', file, 'Tên file không hợp lệ')
+        //   // wait for 3s then remove file from dropzone
+        //   setTimeout(() => {
+        //     this.removeFile(file)
+        //   }, 3000)
+        // }
       })
     },
     // chunk upload configs

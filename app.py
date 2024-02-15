@@ -14,6 +14,8 @@ from utils import FileMaxSizeMB
 from flask_sqlalchemy import SQLAlchemy
 from wtforms import SelectField
 
+from ms_authn import access_token
+
 # app starts here
 app = Flask(__name__)
 # enable debug mode
@@ -54,6 +56,15 @@ def handle_upload():
     # handle chunked files from client
     file = request.files['file']
     print('file', file)
+    # access request.form to get the form data
+    form_data = request.form
+    # print('form_data', form_data)
+    ma_nhan_vien = secure_filename(form_data['ma_nhan_vien'])
+    ho_ten = secure_filename(form_data['ho_ten'])
+    don_vi = secure_filename(form_data['don_vi'])
+
+    # construct data_dir
+    data_dir = os.path.join(app.config['DATA_DIR'], don_vi, ma_nhan_vien, ho_ten)
     save_path = os.path.join(app.config['DATA_DIR'], secure_filename(file.filename))
     current_chunk = int(request.form['dzchunkindex'])
     # If the file already exists it's ok if we are appending to it,
