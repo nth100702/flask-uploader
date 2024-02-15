@@ -1,79 +1,154 @@
-{% extends "base.html" %}
-{% block content %}
-
-<form method="POST" action='/upload' class="dropzone dz-clickable" id="dropper" enctype="multipart/form-data">
-</form>
+{% extends "base.html" %} {% block content %}
+<!-- <div class="col g-3"> -->
+<div class="flex flex-col items-center">
+  <div
+    class="flex flex-col items-center max-w-sm p-6 bg-white border border-gray-200 rounded-lg shadow hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-gray-700"
+  >
+    <div class="">
+      <form
+        method="POST"
+        action="/upload"
+        class="dropzone dz-clickable block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400"
+        id="dropper"
+        enctype="multipart/form-data"
+      >
+        {{ form.hidden_tag() }}
+        <div class="form-group row">
+          {{ form.ma_nhan_vien.label(class="form-control-label") }} {{
+          form.ma_nhan_vien(class="form-control") }}
+        </div>
+        <div class="form-group row">
+          {{ form.ho_ten.label(class="form-control-label") }} {{
+          form.ho_ten(class="form-control") }}
+        </div>
+        <div class="form-group row">
+          {{ form.don_vi.label(class="form-control-label") }} {{
+          form.don_vi(class="form-control") }}
+        </div>
+        <div class="form-group row">
+          {{ form.recaptcha.label(class="form-control-label") }} {{
+          form.recaptcha(class="form-control") }}
+        </div>
+      </form>
+    </div>
+    <div class="">
+      <button
+        type="submit"
+        id="submitBtn"
+        class="text-white items-center bg-gradient-to-r from-cyan-500 to-blue-500 hover:bg-gradient-to-bl focus:ring-4 focus:outline-none focus:ring-cyan-300 dark:focus:ring-cyan-800 font-medium rounded-lg text-sm px-5 py-2.5 text-center mt-4"
+      >
+        Nộp bài dự thi
+      </button>
+    </div>
+  </div>
+</div>
 <script type="application/javascript">
-  // check if all entries fields are filled
-  // var entriesForm = document.getElementById('entries');
-  // var dropperForm = document.getElementById('dropper');
-  // // initially hide the dropper form
-  // dropperForm.style.display = 'none';
-  // // upon every input, check if all fields are filled
-  // entriesForm.addEventListener('input', function () {
-  //   var allFilled = true;
-  //   var inputs = entriesForm.querySelectorAll('#ma_nhan_vien, #ho_ten, #don_vi');
-  //   inputs.forEach(function (input) {
-  //     if (input.value === '') {
-  //       allFilled = false;
-  //     }
-  //   });
+  // disable submit button initially, after DOM is fully loaded
+  document.addEventListener('DOMContentLoaded', (event) => {
+    // check if all entries fields are filled
+    console.log('DOM fully loaded and parsed')
+    var dropperForm = document.getElementById('dropper')
+    // TODO: FIX - get elements with form-group class
+    let entries = document.querySelectorAll('.form-group')
+    console.log(entries)
+    // initially disable submitButton
+    let submitButton = document.getElementById('submitBtn')
+    submitButton.disabled = true
+    // append 'cursor-not-allowed' class to submitButton
+    submitButton.classList.add('cursor-not-allowed')
+    // upon every input, check if all fields are filled
+    entries.addEventListener('input', function () {
+      var allFilled = true
+      var inputs = entries.querySelectorAll('#ma_nhan_vien, #ho_ten, #don_vi')
+      inputs.forEach(function (input) {
+        if (input.value === '') {
+          allFilled = false
+        }
+      })
 
-  //   if (allFilled) {
-  //     dropperForm.style.display = 'block';
-  //   } else {
-  //     dropperForm.style.display = 'none';
-  //   }
-  // });
+      if (allFilled) {
+        submitButton.disabled = false
+      } else {
+        submitButton.disabled = true
+      }
+    })
+  })
 
+  function setMaxFileSizeMB(maxSize) {
+    return function (files) {
+      if (files) {
+        for (let file of files) {
+          let fileSize = file.size / 1024 / 1024 // size in MB
+          if (fileSize > maxSize) {
+            throw new Error(`File size must be less than ${maxSize}MB`)
+          }
+        }
+      }
+    }
+  }
   // dropzone config
   Dropzone.options.dropper = {
     paramName: 'file',
     // disable auto processing (uploading) of dropped files
     autoProcessQueue: false,
     init: function () {
-      // register custom event handler on init
-      let submitButton = document.querySelector("#submitBtn");
-      submitButton.addEventListener("click", (e) => {
-        e.preventDefault();
+      // Has to register custom submit handler for dropzone within init function as required by the declarative approach
+      let submitButton = document.querySelector('#submitBtn')
+      submitButton.addEventListener('click', (e) => {
+        e.preventDefault()
         // Process the queue
-        this.processQueue();
-      });
+        this.processQueue()
+      })
 
       // IMPORTANT: Only accepts valid filenames, else remove file from dropzone
       // fileadded event handler
-      this.on("addedfile", file => {
+      this.on('addedfile', (file) => {
+        let checkPhotoSize = setMaxFileSizeMB(50)
+        let checkVideoSize = setMaxFileSizeMB(500)
+        // TO-DO: validate file size
+        try {
+          checkPhotoSize(file)
+        } catch (error) {
+          this.emit('error', file, error.message)
+          setTimeout(() => {
+            this.removeFile(file)
+          }, 3000)
+        }
         // TO-DO: validate file name
-        regex = /GML-0001-NguyenVoMinhLuan-TacPhamDuThi/
+        regex = /GMD-0001-NguyenVoMinhLuan-TacPhamDuThi/
         if (!regex.test(file.name)) {
           // this.removeFile(file);
           // show dropzone error message
-          this.emit('error', file, 'Tên file không hợp lệ');
+          this.emit('error', file, 'Tên file không hợp lệ')
           // wait for 3s then remove file from dropzone
           setTimeout(() => {
-            this.removeFile(file);
-          }, 3000);
+            this.removeFile(file)
+          }, 3000)
         }
-      });
+      })
     },
+    // chunk upload configs
     chunking: true,
     forceChunking: true,
+    chunkSize: 327680 * 16, // ~ 5.2mb, in bytes: 1,000,000 bytes = 1MB, MS Graph API limits chunk size to be multiples of 327,680 bytes, https://learn.microsoft.com/en-us/graph/api/driveitem-createuploadsession?view=graph-rest-1.0#upload-bytes-to-the-upload-session
+    parallelChunkUploads: true,
+    retryChunks: true,
+    retryChunksLimit: 3,
     url: '/upload',
-    maxFilesize: 500,
-    chunkSize: 5000000, // in bytes: 1000000 bytes = 1MB
+    maxFilesize: 40,
     // accepts images, video, and text formats
-    acceptedFiles: 'image/*, video/*, text/*',
-    dictDefaultMessage: "Kéo thả file vào đây hoặc click để chọn file",
-    dictFileTooBig: "File quá lớn ({{filesize}}MB). Kích thước tối đa: {{maxFilesize}}MB.",
-    dictInvalidFileType: "Chỉ chấp nhận file ",
-    dictResponseError: "Lỗi server",
-    dictCancelUpload: "Hủy",
-    dictCancelUploadConfirmation: "Bạn có chắc chắn muốn hủy upload?",
-    dictRemoveFile: "Xóa",
-    dictFileTooBig: "File quá lớn",
+    acceptedFiles:
+      '.png, .jpg, .jpeg, .gif, .mp4, .avi, .mov, .pdf, .doc, .docx', // avoid .txt (text files) which includes scripts etc.
+    dictDefaultMessage: 'Kéo thả file vào đây hoặc click để chọn file',
+    dictFileTooBig:
+      'File quá lớn ({{filesize}}MB). Kích thước tối đa: {{maxFilesize}}MB.',
+    dictInvalidFileType: 'Chỉ chấp nhận {{acceptedFiles}}',
+    dictResponseError: 'Lỗi server',
+    dictCancelUpload: 'Hủy',
+    dictCancelUploadConfirmation: 'Bạn có chắc chắn muốn hủy upload?',
+    dictRemoveFile: 'Xóa',
+    dictFileTooBig: 'File quá lớn',
   }
 </script>
-
-<button type="submit" id="submitBtn" class="btn btn-primary">Nộp bài dự thi</button>
 
 {% endblock %}

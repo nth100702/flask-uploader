@@ -14,7 +14,7 @@ class ChunkedFile(db.Model):
     filepath = db.Column(db.String(100), nullable=False)
     date_uploaded = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
-class Entry(db.Model):
+class FormData(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     ma_nhan_vien = db.Column(db.String(100), nullable=False)
     ho_ten = db.Column(db.String(100), nullable=False)

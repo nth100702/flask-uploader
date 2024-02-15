@@ -7,6 +7,7 @@
   <title>{% block title %}{% endblock %}</title>
   <!-- Add your CSS files here -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/global.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
   <!-- Use dropzone v5.9.3 -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/dropzone/5.9.3/dropzone.min.css"
     integrity="sha512-jU/7UFiaW5UBGODEopEqnbIAHOI8fO6T99m7Tsmqs2gkdujByJfkCbbfPSN4Wlqlb9TGnsuC0YgUgWkRBK7B9A=="
@@ -21,22 +22,18 @@
     integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL"
     crossorigin="anonymous"></script>
 </head>
-
 <body>
   <header>
-    <!-- Add your header here -->
+    {% include 'navbar.html' %}
   </header>
-
-  <main>
-    {% block content %}{% endblock %}
+  <main class="pt-16 md:pt-26">
+      {% block content %}{% endblock %}
   </main>
-
   <footer>
     <!-- Add your footer here -->
   </footer>
-
-  <!-- Add your JavaScript files here -->
-
+  <!-- load flowbite script -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.2.1/flowbite.min.js"></script>
 </body>
 
 </html>
