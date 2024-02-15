@@ -24,7 +24,7 @@
           {{ form.recaptcha.label(class="form-control-label") }} {{
           form.recaptcha(class="form-control") }}
         </div>
-        <input type="hidden" id="submitId" name="submitId" value="">
+        <input type="hidden" id="submit_id" name="submit_id" value="">
       </form>
     </div>
     <div class="">
@@ -84,7 +84,7 @@
   // dropzone config
   Dropzone.options.dropper = {
     paramName: 'file',
-    // disable auto processing (uploading) of dropped files
+    // disable auto processing (uploading) of dropped files => submit only when entry fields are filled
     autoProcessQueue: false,
     init: function () {
       // Has to register custom submit handler for dropzone within init function as required by the declarative approach
@@ -100,25 +100,32 @@
         e.preventDefault()
         // generate submit ID on frontend request
         let submitId = generateSubmitId();
-        console.log('submitId', submitId);
-        document.getElementById('submitId').value = submitId;
-        // Process the queue
+        console.log('submit_id', submitId);
+        document.getElementById('submit_id').value = submitId;
+        // Process the queue => upload files
         this.processQueue()
         // redirects to /success upon successful upload
         this.on('success', (file, response) => {
-          window.location.href = '/success'
+          // window.location.href = '/success'
+          // this.emit('success', file, 'Woohoo! File đã upload thành công!')
           // clear all dropzone files
-          this.removeAllFiles()
-          // clear all input fields
-          document.getElementById('ma_nhan_vien').value = ''
-          document.getElementById('ho_ten').value = ''
-          document.getElementById('don_vi').value = ''
+          // wait for 5s then remove files from dropzone
+          setTimeout(() => {
+            this.removeAllFiles()
+            // clear all input fields
+            // document.getElementById('ma_nhan_vien').value = ''
+            // document.getElementById('ho_ten').value = ''
+            // document.getElementById('don_vi').value = ''
+            // document.getElementById('submit_id').value = ''
+          }, 5000)
+
         })
       })
 
       // IMPORTANT: Only accepts valid filenames, else remove file from dropzone
       // fileadded event handler
       this.on('addedfile', (file) => {
+
         // let checkPhotoSize = setMaxFileSizeMB(50)
         // let checkVideoSize = setMaxFileSizeMB(500)
         // // TO-DO: validate file size
@@ -142,15 +149,24 @@
         //   }, 3000)
         // }
       })
+
+      // // display success message upon successful upload
+      // this.on('complete', (file, response) => {
+      //   // show success message
+      //   this.emit('success', file, 'Woohoo! File đã upload thành công!')
+      // })
     },
     // chunk upload configs
     chunking: true,
-    forceChunking: true,
+    forceChunking: true, // always use chunking (for simplicity's sake)
     chunkSize: 327680 * 16, // ~ 5.2mb, in bytes: 1,000,000 bytes = 1MB, MS Graph API limits chunk size to be multiples of 327,680 bytes, https://learn.microsoft.com/en-us/graph/api/driveitem-createuploadsession?view=graph-rest-1.0#upload-bytes-to-the-upload-session
-    parallelChunkUploads: true,
+    // parallelChunkUploads: true, // default: Only 2 files are uploaded in parallel
     retryChunks: true,
-    retryChunksLimit: 3,
+    retryChunksLimit: 2,
     url: '/upload',
+    // Each submit event => upload 32 files in parallel
+    parallelUploads: 8,
+    maxFiles: 16,
     maxFilesize: 500,
     // accepts images, video, and text formats
     acceptedFiles:
