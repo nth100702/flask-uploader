@@ -46,3 +46,7 @@ div .alert {
   text-align: center;
   display: none;
 }
+
+a.no-underline {
+  text-decoration: none;
+}

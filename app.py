@@ -1,6 +1,7 @@
 from logging import log
 from flask import Flask, config, logging, make_response, render_template
 from flask_wtf import FlaskForm, RecaptchaField
+import requests
 from wtforms import StringField
 from wtforms.validators import DataRequired, ValidationError
 from flask_wtf.file import FileField, MultipleFileField, FileRequired, FileAllowed
@@ -152,17 +153,29 @@ def handle_upload():
     dztotalfilesize: int = int(request.form.get("dztotalfilesize"))
     dzchunkbyteoffset: int = int(request.form.get("dzchunkbyteoffset"))
     submit_id_frontend: str = request.form.get("submit_id")
-    print("submit_id_frontend", submit_id_frontend)
+    # print("submit_id_frontend", submit_id_frontend)
 
     # form data
     ma_nhan_vien = secure_filename(request.form.get("ma_nhan_vien"))
     ho_ten = secure_filename(request.form.get("ho_ten"))
     don_vi = secure_filename(request.form.get("don_vi"))
-    recaptcha = request.form.get("g-recaptcha-response")
 
     # # validate recaptcha
-    # if not recaptcha:
-    #     return "Recaptcha validation failed", 400
+    def verify_recaptcha(response):
+        data = {
+            'secret': app.config['RECAPTCHA_PRIVATE_KEY'],
+            'response': response
+        }
+        r = requests.post('https://www.google.com/recaptcha/api/siteverify', data=data)
+        result = r.json()
+        print("result", result)
+        if result.get('success'):
+            return True
+        else:
+            return False
+    recaptcha_response = request.form.get('g-recaptcha-response')
+    if not verify_recaptcha(recaptcha_response):
+        raise Exception("Xác thực reCAPTCHA thất bại, vui lòng thử lại.", 400)  # Return a client error with status code 400
 
     # Utils
     def reassemble_file(submit_dir, filename, dztotalchunkcount):
@@ -293,8 +306,10 @@ def handle_upload():
         # log.error(e)
         if FileExistsError:
             return make_response((str(e), 409))
-        return make_response(("Lỗi upload file", 500))
-
+        # if error includes this string, it's a client error
+        if "Xác thực reCAPTCHA thất bại" in str(e):
+            return make_response((str(e), 400))
+        return make_response(("Uh oh, lỗi server. Xin thử lại hoặc liên hệ IT tập đoàn để được hỗ trợ", 500))
 
 # /success route
 @app.route("/success")
