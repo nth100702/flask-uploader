@@ -9,8 +9,6 @@ from werkzeug.utils import secure_filename
 import os
 
 from flask import redirect, request, session
-import asyncio
-from utils import FileMaxSizeMB
 
 # import sqlalchemy
 from flask_sqlalchemy import SQLAlchemy
@@ -21,6 +19,68 @@ from ms_authn import access_token
 # from models import User, SubmitRecord, ChunkedFile
 from datetime import datetime
 from flask_migrate import Migrate
+
+
+from msal import ConfidentialClientApplication
+
+# msal_config = {
+#     "auth": {
+#         "tenantId": "52251bad-a823-403e-aaa4-6c40a9fd624b",
+#         "userId": "43b76bad-50b0-43e2-9dec-fe4f639bf486",
+#         "clientId": "61a8ce14-21ce-4e70-9384-74b4e5984a35",
+#         "authority": "https://login.microsoftonline.com/52251bad-a823-403e-aaa4-6c40a9fd624b",
+#         "clientSecret": "qt88Q~BkzY9UBc7CUXfLoeJEcUjz3efhoOkP5djC",
+#         "redirectUri": "http://localhost:5000/auth"
+#     },
+#     "cache": {
+#         "cacheLocation": "localStorage",
+#         "storeAuthStateInCookie": True
+#     }
+# }
+
+ms_graph_config = {
+    "user": {
+        "businessPhones": [],
+        "displayName": "MediaMod",
+        "givenName": "Media",
+        "mail": "mediamod@gemadept.com.vn",
+        "preferredLanguage": "en-US",
+        "surname": "Mod",
+        "userPrincipalName": "mediamod@gemadept.com.vn",
+        "id": "fee2b48b-f942-40a7-9e8a-54d78dbd8397",
+    }
+    # msgraph_config = {
+    #     "apiUrl": "https://graph.microsoft.com/v1.0",
+    #     "scopes": ["https://graph.microsoft.com/.default"]
+}
+# GMD credentials
+APPLICATION_ID = "61a8ce14-21ce-4e70-9384-74b4e5984a35"
+CLIENT_SECRET = "qt88Q~BkzY9UBc7CUXfLoeJEcUjz3efhoOkP5djC"
+SCOPES = ["https://graph.microsoft.com/.default"]
+TENTANT_ID = "52251bad-a823-403e-aaa4-6c40a9fd624b"
+REDIRECT_URI = "http://localhost:5000/auth"
+user_id = "43b76bad-50b0-43e2-9dec-fe4f639bf486"
+authority = f"https://login.microsoftonline.com/{TENTANT_ID}"
+
+# Init MSAL.ConfidentialClientApplication
+confidential_client_app = ConfidentialClientApplication(
+    APPLICATION_ID,
+    authority=authority,
+    client_credential=CLIENT_SECRET,
+)
+
+auth_code_flow = confidential_client_app.initiate_auth_code_flow(
+    scopes=SCOPES, redirect_uri=REDIRECT_URI
+)
+auth_url = auth_code_flow["auth_uri"]
+# open auth_url in browser
+import webbrowser
+
+webbrowser.open(auth_url)
+# redirect user to auth_url to give permission consent
+
+# open auth_url in browser
+
 
 # app starts here
 app = Flask(__name__)
@@ -133,13 +193,27 @@ class User(db.Model):
 
 """Flask routes
 """
-
+# /auth
+@app.route("/auth", methods=["GET"])
+def auth():
+    auth_response = request.args
+    # acquire token by auth code flow
+    result = confidential_client_app.acquire_token_by_auth_code_flow(
+        auth_code_flow=auth_code_flow, auth_response=auth_response, scopes=SCOPES
+    )
+    print("result", result)
+    access_token = result["access_token"]
+    print("access_token", access_token)
+    session["msgraph_access_token"] = access_token
+    # print flask session
+    print("flask session", session.get("msgraph_access_token"))
+    # print("access_token", access_token)
+    return redirect("/")
 
 @app.route("/", methods=["GET"])
 def show_upload_form():
     page_content = {"title": ""}
     return render_template("upload.html", form=EntryForm(), page_content=page_content)
-
 
 @app.route("/upload", methods=["POST"])
 def handle_upload():
@@ -162,21 +236,26 @@ def handle_upload():
 
     # # validate recaptcha
     def verify_recaptcha(response):
-        data = {
-            'secret': app.config['RECAPTCHA_PRIVATE_KEY'],
-            'response': response
-        }
-        r = requests.post('https://www.google.com/recaptcha/api/siteverify', data=data)
+        data = {"secret": app.config["RECAPTCHA_PRIVATE_KEY"], "response": response}
+        r = requests.post("https://www.google.com/recaptcha/api/siteverify", data=data)
         result = r.json()
         print("result", result)
-        if result.get('success'):
+        if result.get("success"):
             return True
         else:
             return False
-    recaptcha_response = request.form.get('g-recaptcha-response')
+    recaptcha_response = request.form.get("g-recaptcha-response")
     if not verify_recaptcha(recaptcha_response):
-        raise Exception("Xác thực reCAPTCHA thất bại, vui lòng thử lại.", 400)  # Return a client error with status code 400
+        raise Exception(
+            "Xác thực reCAPTCHA thất bại, vui lòng thử lại.", 400
+        )  # Return a client error with status code 400
 
+    # Get msgraph_access_token, if not found, perform auth code flow again
+    access_token = session.get("msgraph_access_token")
+    print('access token from /upload', access_token)
+    if access_token is None:
+        return redirect("/auth")
+    
     # Utils
     def reassemble_file(submit_dir, filename, dztotalchunkcount):
         # Reassemble the file from the chunks
@@ -223,6 +302,70 @@ def handle_upload():
         first_chunk = ChunkedFile.query.filter_by(dzuuid=dzuuid, dzchunksize=0).first()
         return first_chunk
 
+    def upload_smallfile_to_onedrive(file_path, file_name):
+        GRAPH_API_ENDPOINT = "https://graph.microsoft.com/v1.0"
+        access_token = session.get("msgraph_access_token")
+        print("access_token", access_token)
+        user_id = "43b76bad-50b0-43e2-9dec-fe4f639bf486"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        }
+        onedrive_folder_data = {
+            "createdDateTime": "2024-02-07T02:41:10Z",
+            "eTag": "\"{0E451124-1D58-4399-8B0C-E93622F58CFC},1\"",
+            "id": "01E26M3MJECFCQ4WA5TFBYWDHJGYRPLDH4",
+            "lastModifiedDateTime": "2024-02-07T02:41:10Z",
+            "name": "GMD Thi Ảnh Đẹp 2024",
+            "webUrl": "https://gmdcorp-my.sharepoint.com/personal/mediamod_gemadept_com_vn/Documents/GMD%20Thi%20%E1%BA%A2nh%20%C4%90%E1%BA%B9p%202024",
+            "cTag": "\"c:{0E451124-1D58-4399-8B0C-E93622F58CFC},0\"",
+            "size": 0,
+            "createdBy": {
+                "user": {
+                    "email": "mediamod@gemadept.com.vn",
+                    "id": "fee2b48b-f942-40a7-9e8a-54d78dbd8397",
+                    "displayName": "MediaMod"
+                }
+            },
+            "lastModifiedBy": {
+                "user": {
+                    "email": "mediamod@gemadept.com.vn",
+                    "id": "fee2b48b-f942-40a7-9e8a-54d78dbd8397",
+                    "displayName": "MediaMod"
+                }
+            },
+            "parentReference": {
+                "driveType": "business",
+                "driveId": "b!BSMpwLx6u0q_b-Nt-1W-O7tis30oT8lEvvD4tylYPZ1oPotOMoVXT5wqC5MaOvrI",
+                "id": "01E26M3MN6Y2GOVW7725BZO354PWSELRRZ",
+                "name": "Documents",
+                "path": "/drive/root:",
+                "siteId": "c0292305-7abc-4abb-bf6f-e36dfb55be3b"
+            },
+            "fileSystemInfo": {
+                "createdDateTime": "2024-02-07T02:41:10Z",
+                "lastModifiedDateTime": "2024-02-07T02:41:10Z"
+            },
+            "folder": {
+                "childCount": 0
+            }
+        },
+        with open(file_path, "rb") as upload:
+            media_content = upload.read()
+        response = requests.put(
+            f"{GRAPH_API_ENDPOINT}/users/fee2b48b-f942-40a7-9e8a-54d78dbd8397/drive/items/01E26M3MJECFCQ4WA5TFBYWDHJGYRPLDH4:/{file_name}:/content",
+            headers=headers,
+            data=media_content,
+        )
+        print("uploading to onedrive", response.json())
+        # check if the file has been uploaded to OneDrive
+        if response.status_code == 200:
+            return True
+        else:
+            return False
+
+    # upload large file to OneDrive
+
     try:
         submit_dir = os.path.join(
             app.config["UPLOAD_FOLDER"],
@@ -243,12 +386,12 @@ def handle_upload():
         # return
 
         file_upload_query = {
-                "filename": filename,
-                "filename": filename,
-                "filepath": submit_dir,
-                "total_chunks": dztotalchunkcount,
-                "submit_record_id": submit_record.id,
-            }
+            "filename": filename,
+            "filename": filename,
+            "filepath": submit_dir,
+            "total_chunks": dztotalchunkcount,
+            "submit_record_id": submit_record.id,
+        }
         # Check if this is the first chunk
         first_chunk = get_first_chunk(dzuuid=dzuuid)
         # print("first_chunk", first_chunk)
@@ -257,14 +400,16 @@ def handle_upload():
             # This is the first chunk, check if the file upload exists
             # if not create a new UploadFile before saving the chunk
             get_file_upload(file_upload_query)
-        
+
         # Get the file upload
         file_upload = get_file_upload(file_upload_query)
         # print("file_upload by direct query", file_upload)
-        
+
         # Before saving the chunk, check if the FILE already exists
         if os.path.exists(os.path.join(submit_dir, filename)):
-            raise FileExistsError("Whoops! File đã tồn tại, vui lòng thử lại với file khác")
+            raise FileExistsError(
+                "Whoops! File đã tồn tại, vui lòng thử lại với file khác"
+            )
         else:
             # First save the chunk to the server, then save the chunk metadata to the database
             chunk_path = os.path.join(submit_dir, f"{filename}.part{dzchunkindex}")
@@ -291,6 +436,11 @@ def handle_upload():
                     filename=filename,
                     dztotalchunkcount=dztotalchunkcount,
                 )
+                # Upload the file to OneDrive
+                upload_smallfile_to_onedrive(
+                    file_path=os.path.join(submit_dir, filename),
+                    file_name=filename,
+                )
                 # Update the file upload status
                 file_upload.upload_completed = True
                 # Update the submit record status
@@ -309,13 +459,18 @@ def handle_upload():
         # if error includes this string, it's a client error
         if "Xác thực reCAPTCHA thất bại" in str(e):
             return make_response((str(e), 400))
-        return make_response(("Uh oh, lỗi server. Xin thử lại hoặc liên hệ IT tập đoàn để được hỗ trợ", 500))
+        return make_response(
+            (
+                "Uh oh, lỗi server. Xin thử lại hoặc liên hệ IT tập đoàn để được hỗ trợ",
+                500,
+            )
+        )
+
 
 # /success route
 @app.route("/success")
 def success():
     return render_template("success.html")
-
 
 if __name__ == "__main__":
     with app.app_context():
