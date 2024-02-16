@@ -1,81 +1,23 @@
-from logging import log
-from flask import Flask, config, logging, make_response, render_template
+from flask import Flask, make_response, render_template, redirect, request, session
 from flask_wtf import FlaskForm, RecaptchaField
-import requests
-from wtforms import StringField
-from wtforms.validators import DataRequired, ValidationError
-from flask_wtf.file import FileField, MultipleFileField, FileRequired, FileAllowed
+from wtforms import StringField, SelectField
+from wtforms.validators import DataRequired
 from werkzeug.utils import secure_filename
-import os
-
-from flask import redirect, request, session
-
-# import sqlalchemy
 from flask_sqlalchemy import SQLAlchemy
-from wtforms import SelectField
-
-from ms_authn import access_token
-
-# from models import User, SubmitRecord, ChunkedFile
+# from flask_migrate import Migrate
+from ms_auth_delegated import (
+    init_msal_app,
+    get_auth_code_flow,
+    get_auth_response,
+    get_token,
+)
+import os
+import requests
 from datetime import datetime
-from flask_migrate import Migrate
 
-
-from msal import ConfidentialClientApplication
-
-# msal_config = {
-#     "auth": {
-#         "tenantId": "52251bad-a823-403e-aaa4-6c40a9fd624b",
-#         "userId": "43b76bad-50b0-43e2-9dec-fe4f639bf486",
-#         "clientId": "61a8ce14-21ce-4e70-9384-74b4e5984a35",
-#         "authority": "https://login.microsoftonline.com/52251bad-a823-403e-aaa4-6c40a9fd624b",
-#         "clientSecret": "qt88Q~BkzY9UBc7CUXfLoeJEcUjz3efhoOkP5djC",
-#         "redirectUri": "http://localhost:5000/auth"
-#     },
-#     "cache": {
-#         "cacheLocation": "localStorage",
-#         "storeAuthStateInCookie": True
-#     }
-# }
-
-ms_graph_config = {
-    "user": {
-        "businessPhones": [],
-        "displayName": "MediaMod",
-        "givenName": "Media",
-        "mail": "mediamod@gemadept.com.vn",
-        "preferredLanguage": "en-US",
-        "surname": "Mod",
-        "userPrincipalName": "mediamod@gemadept.com.vn",
-        "id": "fee2b48b-f942-40a7-9e8a-54d78dbd8397",
-    }
-    # msgraph_config = {
-    #     "apiUrl": "https://graph.microsoft.com/v1.0",
-    #     "scopes": ["https://graph.microsoft.com/.default"]
-}
-# GMD credentials
-APPLICATION_ID = "61a8ce14-21ce-4e70-9384-74b4e5984a35"
-CLIENT_SECRET = "qt88Q~BkzY9UBc7CUXfLoeJEcUjz3efhoOkP5djC"
-SCOPES = ["https://graph.microsoft.com/.default"]
-TENTANT_ID = "52251bad-a823-403e-aaa4-6c40a9fd624b"
-REDIRECT_URI = "http://localhost:5000/auth"
-user_id = "43b76bad-50b0-43e2-9dec-fe4f639bf486"
-authority = f"https://login.microsoftonline.com/{TENTANT_ID}"
-
-# Init MSAL.ConfidentialClientApplication
-confidential_client_app = ConfidentialClientApplication(
-    APPLICATION_ID,
-    authority=authority,
-    client_credential=CLIENT_SECRET,
-)
-
-auth_code_flow = confidential_client_app.initiate_auth_code_flow(
-    scopes=SCOPES, redirect_uri=REDIRECT_URI
-)
-auth_url = auth_code_flow["auth_uri"]
-# open auth_url in browser
-import webbrowser
-webbrowser.open(auth_url)
+# setup msal
+confidential_client_app = init_msal_app()
+auth_code_flow, auth_url = get_auth_code_flow(confidential_client_app)
 
 # app starts here
 app = Flask(__name__)
@@ -83,146 +25,81 @@ app = Flask(__name__)
 app.config.from_object("config.Config")
 # set up flask logging
 log = app.logger
+
+# setup sqlalchemy
 db = SQLAlchemy(app)
-# connects app to the database
-migrate = Migrate(app, db)
+# migrate = Migrate(app, db)
 
-"""Flask-WFT web form
-"""
+# continue setup msal
+auth_response = get_auth_response(auth_url)  # redirects to /auth
 
+# TO-DO: Setup logging => log to file for audit trail
 
-class EntryForm(FlaskForm):
-    ma_nhan_vien = StringField("Mã nhân viên", validators=[DataRequired()])
-    ho_ten = StringField("Họ tên", validators=[DataRequired()])
-    don_vi = SelectField(
-        "Đơn vị",
-        choices=[("GMDHO", "Gemadept HO"), ("GML", "Gemalink")],
-        validators=[DataRequired()],
-    )
-    recaptcha = RecaptchaField()
-
-
-"""SqlAlchemy database models
-"""
-
-
-class ChunkedFile(db.Model):
-    __tablename__ = "chunked_file"
-    id = db.Column(db.Integer, primary_key=True)
-    # dz fields
-    dzuuid = db.Column(db.String(100), nullable=False)  # unique ID per upload file
-    dzchunkindex = db.Column(
-        db.Integer, nullable=False
-    )  # the chunk number of the current upload
-    dzchunksize = db.Column(db.Integer, nullable=False)
-    dztotalfilesize = db.Column(db.Integer, nullable=False)
-    dztotalchunkcount = db.Column(db.Integer, nullable=False)
-    dzchunkbyteoffset = db.Column(
-        db.Integer, nullable=False
-    )  # The place in the file this chunk starts
-    # file fields
-    chunkpath = db.Column(db.String(100), nullable=False)
-    # others
-    date_uploaded = db.Column(db.DateTime, nullable=False, default=datetime.now())
-
-    # foreign key
-    file_upload_id = db.Column(
-        db.Integer, db.ForeignKey("file_upload.id"), nullable=False
-    )
-
-    def __repr__(self):
-        return f"ChunkedFile('{self.filename}', '{self.date_uploaded}')"
-
-
-class FileUpload(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    filename = db.Column(db.String(100), nullable=False)
-    filepath = db.Column(db.String(100), nullable=False)
-    # keep track of chunks
-    total_chunks = db.Column(db.Integer, nullable=False)
-    chunks_received = db.Column(db.Integer, default=0)
-    upload_completed = db.Column(db.Boolean, default=False)
-    # timestamp
-    date_uploaded = db.Column(db.DateTime, nullable=False, default=datetime.now())
-
-    # a file upload has many chunked files
-    chunked_files = db.relationship("ChunkedFile", backref="file_upload")
-
-    # each file upload belongs to a submit record
-    submit_record_id = db.Column(
-        db.Integer, db.ForeignKey("submit_record.id"), nullable=False
-    )
-
-    def __repr__(self):
-        return f"FileUpload('{self.filename}', '{self.date_uploaded}')"
-
-
-class SubmitRecord(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    submit_id_frontend = db.Column(db.String(100), nullable=False)
-    all_files_uploaded = db.Column(db.Boolean, default=False)
-    date_submitted = db.Column(db.DateTime, nullable=False, default=datetime.now())
-    # each submit record has one submitter
-    submitter_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    # each submit record has many file uploads
-    file_uploads = db.relationship("FileUpload", backref="submit_record")
-
-    def __repr__(self):
-        return f"SubmitRecord('{self.date_submitted}', '{self.all_files_uploaded}')"
-
-
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    employee_id = db.Column(db.String(100), nullable=False)
-    full_name = db.Column(db.String(100), nullable=False)
-    division = db.Column(db.String(100), nullable=False)
-    # autogenerated
-    date_created = db.Column(db.DateTime, nullable=False, default=datetime.now())
-
-    # each user has one or more submit records
-    submit_records = db.relationship("SubmitRecord", backref="user")
-
-    def __repr__(self):
-        return f"User('{self.employee_id}', '{self.full_name}', '{self.division}')"
-
-
-"""Flask routes
-"""
 # /auth
 # The point of msgraph auth => get access_token
 @app.route("/auth", methods=["GET"])
 def auth():
+    # Check if the request is coming from localhost
+    if (
+        request.remote_addr != "127.0.0.1"
+    ):  # noted that if you're using a reverse proxy, the remote_addr will be the proxy server's IP; best practice would be configure nginx to check if a request is coming from localhost
+        return "Unauthorized", 401
     # if auth_response is None, get it from the request args
-    if session.get("msgraph_auth_response") is None and request.args.get("code") is not None:
-        webbrowser.open(auth_url)
+    if (
+        session.get("msgraph_auth_response") is None
+        and request.args.get("code") is not None
+    ):
+        # webbrowser.open(auth_url)
         auth_response = request.args
         # save auth_response to flask session
         session["msgraph_auth_response"] = auth_response
 
     # check if access_token is saved in flask session
-    if session.get("msgraph_access_token") is not None:
-        # make_response(("Authentication already performed", 200))
-        return redirect("/")
+    if (
+        session.get("msgraph_access_token") is not None
+        and session.get("msgraph_auth_response") is not None
+    ):
+        # return auth_response & access_token as a response
+        return make_response(
+            (
+                {
+                    "auth_response": session.get("msgraph_auth_response"),
+                    "access_token": session.get("msgraph_access_token"),
+                },
+                200,
+            )
+        )
     # else acquire token by auth code flow
     auth_response = session.get("msgraph_auth_response")
     # acquire token by auth code flow
-    result = confidential_client_app.acquire_token_by_auth_code_flow(
-        auth_code_flow=auth_code_flow, auth_response=auth_response, scopes=SCOPES
+    access_token = get_token(confidential_client_app, auth_code_flow, auth_response)
+    # save access_token to flask session
+    session["msgraph_access_token"] = access_token
+    return make_response(
+        (
+            {
+                "auth_response": session.get("msgraph_auth_response"),
+                "access_token": session.get("msgraph_access_token"),
+            },
+            200,
+        )
     )
 
-    access_token = result["access_token"]
-    # print("access_token", access_token)
-    session["msgraph_access_token"] = access_token
-    print("saved token to flask.session")
-    # print flask session
-    # print("flask session", session.get("msgraph_access_token"))
-    # print("access_token", access_token)
-    return redirect("/")
 
 @app.route("/", methods=["GET"])
 def show_upload_form():
-    page_content = {"title": ""}
-    return render_template("upload.html", form=EntryForm(), page_content=page_content)
+    class EntryForm(FlaskForm):
+        ma_nhan_vien = StringField("Mã nhân viên", validators=[DataRequired()])
+        ho_ten = StringField("Họ tên", validators=[DataRequired()])
+        don_vi = SelectField(
+            "Đơn vị",
+            choices=[("GMDHO", "Gemadept HO"), ("GML", "Gemalink")],
+            validators=[DataRequired()],
+        )
+        recaptcha = RecaptchaField()
+
+    return render_template("upload.html", form=EntryForm())
+
 
 @app.route("/upload", methods=["POST"])
 def handle_upload():
@@ -251,6 +128,7 @@ def handle_upload():
             return True
         else:
             return False
+
     recaptcha_response = request.form.get("g-recaptcha-response")
     if not verify_recaptcha(recaptcha_response):
         raise Exception(
@@ -262,7 +140,7 @@ def handle_upload():
     # print('access token from /upload', access_token)
     if access_token is None:
         return redirect("/auth")
-    
+
     # Utils
     def reassemble_file(submit_dir, filename, dztotalchunkcount):
         # Reassemble the file from the chunks
@@ -318,56 +196,54 @@ def handle_upload():
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json",
         }
-        onedrive_data_fyi = {
-            "createdDateTime": "2024-02-07T02:41:10Z",
-            "eTag": "\"{0E451124-1D58-4399-8B0C-E93622F58CFC},1\"",
-            "id": "01E26M3MJECFCQ4WA5TFBYWDHJGYRPLDH4",
-            "lastModifiedDateTime": "2024-02-07T02:41:10Z",
-            "name": "GMD Thi Ảnh Đẹp 2024",
-            "webUrl": "https://gmdcorp-my.sharepoint.com/personal/mediamod_gemadept_com_vn/Documents/GMD%20Thi%20%E1%BA%A2nh%20%C4%90%E1%BA%B9p%202024",
-            "cTag": "\"c:{0E451124-1D58-4399-8B0C-E93622F58CFC},0\"",
-            "size": 0,
-            "createdBy": {
-                "user": {
-                    "email": "mediamod@gemadept.com.vn",
-                    "id": "fee2b48b-f942-40a7-9e8a-54d78dbd8397",
-                    "displayName": "MediaMod"
-                }
-            },
-            "lastModifiedBy": {
-                "user": {
-                    "email": "mediamod@gemadept.com.vn",
-                    "id": "fee2b48b-f942-40a7-9e8a-54d78dbd8397",
-                    "displayName": "MediaMod"
-                }
-            },
-            "parentReference": {
-                "driveType": "business",
-                "driveId": "b!BSMpwLx6u0q_b-Nt-1W-O7tis30oT8lEvvD4tylYPZ1oPotOMoVXT5wqC5MaOvrI",
-                "id": "01E26M3MN6Y2GOVW7725BZO354PWSELRRZ",
-                "name": "Documents",
-                "path": "/drive/root:",
-                "siteId": "c0292305-7abc-4abb-bf6f-e36dfb55be3b"
-            },
-            "fileSystemInfo": {
+        onedrive_data_fyi = (
+            {
                 "createdDateTime": "2024-02-07T02:41:10Z",
-                "lastModifiedDateTime": "2024-02-07T02:41:10Z"
+                "eTag": '"{0E451124-1D58-4399-8B0C-E93622F58CFC},1"',
+                "id": "01E26M3MJECFCQ4WA5TFBYWDHJGYRPLDH4",
+                "lastModifiedDateTime": "2024-02-07T02:41:10Z",
+                "name": "GMD Thi Ảnh Đẹp 2024",
+                "webUrl": "https://gmdcorp-my.sharepoint.com/personal/mediamod_gemadept_com_vn/Documents/GMD%20Thi%20%E1%BA%A2nh%20%C4%90%E1%BA%B9p%202024",
+                "cTag": '"c:{0E451124-1D58-4399-8B0C-E93622F58CFC},0"',
+                "size": 0,
+                "createdBy": {
+                    "user": {
+                        "email": "mediamod@gemadept.com.vn",
+                        "id": "fee2b48b-f942-40a7-9e8a-54d78dbd8397",
+                        "displayName": "MediaMod",
+                    }
+                },
+                "lastModifiedBy": {
+                    "user": {
+                        "email": "mediamod@gemadept.com.vn",
+                        "id": "fee2b48b-f942-40a7-9e8a-54d78dbd8397",
+                        "displayName": "MediaMod",
+                    }
+                },
+                "parentReference": {
+                    "driveType": "business",
+                    "driveId": "b!BSMpwLx6u0q_b-Nt-1W-O7tis30oT8lEvvD4tylYPZ1oPotOMoVXT5wqC5MaOvrI",
+                    "id": "01E26M3MN6Y2GOVW7725BZO354PWSELRRZ",
+                    "name": "Documents",
+                    "path": "/drive/root:",
+                    "siteId": "c0292305-7abc-4abb-bf6f-e36dfb55be3b",
+                },
+                "fileSystemInfo": {
+                    "createdDateTime": "2024-02-07T02:41:10Z",
+                    "lastModifiedDateTime": "2024-02-07T02:41:10Z",
+                },
+                "folder": {"childCount": 0},
             },
-            "folder": {
-                "childCount": 0
-            }
-        },
-        onedrive_target_folder_id = "01E26M3MJECFCQ4WA5TFBYWDHJGYRPLDH4" # "Thi Anh Dep 2024"
-        onedrive_target_user_id = "fee2b48b-f942-40a7-9e8a-54d78dbd8397" # MediaMod
+        )
+        onedrive_target_folder_id = (
+            "01E26M3MJECFCQ4WA5TFBYWDHJGYRPLDH4"  # "Thi Anh Dep 2024"
+        )
+        onedrive_target_user_id = "fee2b48b-f942-40a7-9e8a-54d78dbd8397"  # MediaMod
         ONEDRIVE_API_ENDPOINT = f"{GRAPH_API_ENDPOINT}/users/{onedrive_target_user_id}/drive/items/{onedrive_target_folder_id}"
         # first check if folder exists, if not create it; onedrive_submit_dir = local_submit_dir
         onedrive_submit_dir = local_submit_dir
-        res = requests.get(
-            ONEDRIVE_API_ENDPOINT,
-            headers=headers
-        )
+        res = requests.get(ONEDRIVE_API_ENDPOINT, headers=headers)
         print("res, get all drive items", res.json())
-        
 
         with open(onedrive_submit_dir, "rb") as upload:
             media_content = upload.read()
@@ -490,6 +366,7 @@ def handle_upload():
 @app.route("/success")
 def success():
     return render_template("success.html")
+
 
 if __name__ == "__main__":
     with app.app_context():

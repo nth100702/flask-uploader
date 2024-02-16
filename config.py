@@ -3,9 +3,19 @@ import os
 class Config(object):
     # Flask
     SECRET_KEY = 'SECRET'
-    DEBUG = True
+    # FLASK_ENV & DEBUG => only read from env var, defined here won't work
+    """
+    Solution: Define FLASK_ENV and DEBUG in .env file
+    then use python-dotenv to load the .env file
+    """
+    # FLASK_ENV = "development" 
+    # DEBUG = True # debug mode
     # Database
     basedir = os.path.abspath(os.path.dirname(__file__))
+    # Create database if it doesn't exist
+    if not os.path.exists(os.path.join(basedir, 'database.db')):
+        with open(os.path.join(basedir, 'database.db'), 'w') as f:
+            pass
     SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(basedir, 'database.db')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 

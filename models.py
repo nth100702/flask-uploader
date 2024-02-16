@@ -1,5 +1,5 @@
 from datetime import datetime
-from app import db
+from app import db, app
 
 """SqlAlchemy database models
 """
@@ -82,3 +82,11 @@ class User(db.Model):
 
     def __repr__(self):
         return f"User('{self.employee_id}', '{self.full_name}', '{self.division}')"
+
+"""
+You have to create db tables WITHIN the flask app context
+Else you will get an error like this: RuntimeError(unbound_message) from None RuntimeError: Working outside of application context.
+Solution: Use app's context manager to create db tables
+"""
+with app.app_context():
+    db.create_all()
