@@ -208,7 +208,7 @@ def auth():
     # print flask session
     print("flask session", session.get("msgraph_access_token"))
     # print("access_token", access_token)
-    return redirect("/")
+    return 'ok', 200
 
 @app.route("/", methods=["GET"])
 def show_upload_form():
@@ -302,16 +302,16 @@ def handle_upload():
         first_chunk = ChunkedFile.query.filter_by(dzuuid=dzuuid, dzchunksize=0).first()
         return first_chunk
 
-    def upload_smallfile_to_onedrive(file_path, file_name):
+    def upload_smallfile_to_onedrive(local_submit_dir: str, file_name: str):
+        # prep inputs
         GRAPH_API_ENDPOINT = "https://graph.microsoft.com/v1.0"
         access_token = session.get("msgraph_access_token")
         print("access_token", access_token)
-        user_id = "43b76bad-50b0-43e2-9dec-fe4f639bf486"
         headers = {
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json",
         }
-        onedrive_folder_data = {
+        onedrive_data_fyi = {
             "createdDateTime": "2024-02-07T02:41:10Z",
             "eTag": "\"{0E451124-1D58-4399-8B0C-E93622F58CFC},1\"",
             "id": "01E26M3MJECFCQ4WA5TFBYWDHJGYRPLDH4",
@@ -350,10 +350,22 @@ def handle_upload():
                 "childCount": 0
             }
         },
-        with open(file_path, "rb") as upload:
+        onedrive_target_folder_id = "01E26M3MJECFCQ4WA5TFBYWDHJGYRPLDH4" # "Thi Anh Dep 2024"
+        onedrive_target_user_id = "fee2b48b-f942-40a7-9e8a-54d78dbd8397" # MediaMod
+        ONEDRIVE_API_ENDPOINT = f"{GRAPH_API_ENDPOINT}/users/{onedrive_target_user_id}/drive/items/{onedrive_target_folder_id}"
+        # first check if folder exists, if not create it; onedrive_submit_dir = local_submit_dir
+        onedrive_submit_dir = local_submit_dir
+        res = requests.get(
+            ONEDRIVE_API_ENDPOINT,
+            headers=headers
+        )
+        print("res, get all drive items", res.json())
+        
+
+        with open(onedrive_submit_dir, "rb") as upload:
             media_content = upload.read()
         response = requests.put(
-            f"{GRAPH_API_ENDPOINT}/users/fee2b48b-f942-40a7-9e8a-54d78dbd8397/drive/items/01E26M3MJECFCQ4WA5TFBYWDHJGYRPLDH4:/{file_name}:/content",
+            f"{GRAPH_API_ENDPOINT}/users/{onedrive_target_user_id}/drive/items/{onedrive_target_folder_id}:/{file_name}:/content",
             headers=headers,
             data=media_content,
         )
