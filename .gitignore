@@ -20,4 +20,5 @@ uploads/
 .env
 
 # ignore db
+<<<<<<< Updated upstream
 *.db
