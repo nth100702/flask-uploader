@@ -50,10 +50,10 @@
 
     // Polling every 3 seconds
     setInterval(() => {
-      console.log('Polling every 3 seconds')
+      // console.log('Polling every 3 seconds')
       let recaptchaFilled = grecaptcha && grecaptcha.getResponse().length !== 0;
       // console.log('grepcaptcha', grecaptcha)
-      console.log('grep res', grecaptcha.getResponse())
+      // console.log('grep res', grecaptcha.getResponse())
       let allFilled = true
       inputs.forEach(function (input) {
         if (input.value === '') {
@@ -92,6 +92,7 @@
     // disable auto processing (uploading) of dropped files => submit only when entry fields are filled
     autoProcessQueue: false,
     init: function () {
+      const dz = this
       // Has to register custom submit handler for dropzone within init function as required by the declarative approach
       let submitButton = document.querySelector('#submitBtn')
 
@@ -110,21 +111,7 @@
         // Process the queue => upload files
         this.processQueue()
         // redirects to /success upon successful upload
-        this.on('success', (file, response) => {
-          // window.location.href = '/success'
-          // this.emit('success', file, 'Woohoo! File đã upload thành công!')
-          // clear all dropzone files
-          // wait for 5s then remove files from dropzone
-          setTimeout(() => {
-            this.removeAllFiles()
-            // clear all input fields
-            // document.getElementById('ma_nhan_vien').value = ''
-            // document.getElementById('ho_ten').value = ''
-            // document.getElementById('don_vi').value = ''
-            // document.getElementById('submit_id').value = ''
-          }, 5000)
 
-        })
       })
 
       // IMPORTANT: Only accepts valid filenames, else remove file from dropzone
@@ -154,12 +141,49 @@
         //   }, 3000)
         // }
       })
+      /*
+      Dz has a limitation that its retry mechanism doesn't provide a built-in way to stop retrying for a specific file based on the server's response.
+      Using on "sending" & xhr.onreadystatechange only works for the first time, but not for the subsequent retries.
+      => Solution: implement a custom retry mechanism
+      */
+      dz.on("sending", (file, xhr) => { // Use lambda, so this will refer to dropzone init()
+          xhr.onreadystatechange = () => {
+            if (xhr.readyState === 4) { // 4 means the request is done
+              if (xhr.status === 409) {
+                // Store the status code in the file object
+                dz.emit("error", file, "Whoops, file đã tồn tại trên hệ thống!");
+                dz.cancelUpload(file); // Stop the upload
+                // remove this file from queue after 5s
+                setTimeout(() => {
+                  // dz.removeFile(file);
+                  // reset queue
+                  dz.removeAllFiles();
+                }, 3000);
+              }
+            }
+          }
+        })
+      // Add error handler for dropzone
+      dz.on('error', (file, errorMessage) => {
+       
+        
+        // Add your code here to escape the error event after the condition is checked
+        // ...
+      })
 
-      // // display success message upon successful upload
-      // this.on('complete', (file, response) => {
-      //   // show success message
-      //   this.emit('success', file, 'Woohoo! File đã upload thành công!')
-      // })
+
+
+      // if (xhr.status === 409) {
+      //   // Display message to user
+      //   this.cancelUpload(file); // Stop the upload
+      //   this.emit("error", file, "Whoops, file đã tồn tại trên hệ thống!");
+      //   // remove this file from queue
+      //   // this.removeFile(file);
+      //   // remove this file after 5s
+      //   setTimeout(() => {
+      //     this.removeFile(file);
+      //   }, 5000);
+      // }
     },
     // chunk upload configs
     chunking: true,
@@ -168,8 +192,9 @@
     // parallelChunkUploads: true, // default: Only 2 files are uploaded in parallel
     retryChunks: true,
     retryChunksLimit: 2,
+    // maxRetries: 3,
     url: '/upload',
-    // Each submit event => upload 32 files in parallel
+    // Each submit event => upload 8 files in parallel
     parallelUploads: 8,
     maxFiles: 16,
     maxFilesize: 500,

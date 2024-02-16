@@ -75,12 +75,7 @@ auth_code_flow = confidential_client_app.initiate_auth_code_flow(
 auth_url = auth_code_flow["auth_uri"]
 # open auth_url in browser
 import webbrowser
-
 webbrowser.open(auth_url)
-# redirect user to auth_url to give permission consent
-
-# open auth_url in browser
-
 
 # app starts here
 app = Flask(__name__)
@@ -194,21 +189,35 @@ class User(db.Model):
 """Flask routes
 """
 # /auth
+# The point of msgraph auth => get access_token
 @app.route("/auth", methods=["GET"])
 def auth():
-    auth_response = request.args
+    # if auth_response is None, get it from the request args
+    if session.get("msgraph_auth_response") is None and request.args.get("code") is not None:
+        webbrowser.open(auth_url)
+        auth_response = request.args
+        # save auth_response to flask session
+        session["msgraph_auth_response"] = auth_response
+
+    # check if access_token is saved in flask session
+    if session.get("msgraph_access_token") is not None:
+        # make_response(("Authentication already performed", 200))
+        return redirect("/")
+    # else acquire token by auth code flow
+    auth_response = session.get("msgraph_auth_response")
     # acquire token by auth code flow
     result = confidential_client_app.acquire_token_by_auth_code_flow(
         auth_code_flow=auth_code_flow, auth_response=auth_response, scopes=SCOPES
     )
-    print("result", result)
+
     access_token = result["access_token"]
-    print("access_token", access_token)
-    session["msgraph_access_token"] = access_token
-    # print flask session
-    print("flask session", session.get("msgraph_access_token"))
     # print("access_token", access_token)
-    return 'ok', 200
+    session["msgraph_access_token"] = access_token
+    print("saved token to flask.session")
+    # print flask session
+    # print("flask session", session.get("msgraph_access_token"))
+    # print("access_token", access_token)
+    return redirect("/")
 
 @app.route("/", methods=["GET"])
 def show_upload_form():
@@ -217,8 +226,8 @@ def show_upload_form():
 
 @app.route("/upload", methods=["POST"])
 def handle_upload():
+    # form data, dz
     dzfile = request.files.get("file")
-    print("dzfile", dzfile)
     filename: str = secure_filename(dzfile.filename)
     dzuuid: str = secure_filename(request.form.get("dzuuid"))
     dzchunkindex: int = int(request.form.get("dzchunkindex"))
@@ -227,9 +236,7 @@ def handle_upload():
     dztotalfilesize: int = int(request.form.get("dztotalfilesize"))
     dzchunkbyteoffset: int = int(request.form.get("dzchunkbyteoffset"))
     submit_id_frontend: str = request.form.get("submit_id")
-    # print("submit_id_frontend", submit_id_frontend)
-
-    # form data
+    # form data, inputs
     ma_nhan_vien = secure_filename(request.form.get("ma_nhan_vien"))
     ho_ten = secure_filename(request.form.get("ho_ten"))
     don_vi = secure_filename(request.form.get("don_vi"))
@@ -239,7 +246,7 @@ def handle_upload():
         data = {"secret": app.config["RECAPTCHA_PRIVATE_KEY"], "response": response}
         r = requests.post("https://www.google.com/recaptcha/api/siteverify", data=data)
         result = r.json()
-        print("result", result)
+        # print("result", result)
         if result.get("success"):
             return True
         else:
@@ -252,7 +259,7 @@ def handle_upload():
 
     # Get msgraph_access_token, if not found, perform auth code flow again
     access_token = session.get("msgraph_access_token")
-    print('access token from /upload', access_token)
+    # print('access token from /upload', access_token)
     if access_token is None:
         return redirect("/auth")
     
