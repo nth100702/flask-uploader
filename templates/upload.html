@@ -34,6 +34,7 @@
       </button>
     </div>
   </div>
+  {% include 'notif.html' %}
 </div>
 <script type="application/javascript">
   // disable submit button initially, after DOM is fully loaded
@@ -41,32 +42,36 @@
     // check if all entries fields are filled
     console.log('DOM fully loaded and parsed')
     let dropperForm = document.getElementById('dropper')
-    // TODO: FIX - get elements with form-group class
     let inputs = document.querySelectorAll('#ma_nhan_vien, #ho_ten, #don_vi')
-    console.log('inputs', inputs)
     // initially disable submitButton
     let submitButton = document.getElementById('submitBtn')
     submitButton.disabled = true
-    // append 'cursor-not-allowed' class to submitButton
     submitButton.classList.add('cursor-not-allowed')
-    // upon every input, check if all fields are filled
 
-    dropperForm.addEventListener('input', function () {
-      var allFilled = true
+    // Polling every 3 seconds
+    setInterval(() => {
+      console.log('Polling every 3 seconds')
+      let recaptchaFilled = grecaptcha && grecaptcha.getResponse().length !== 0;
+      // console.log('grepcaptcha', grecaptcha)
+      console.log('grep res', grecaptcha.getResponse())
+      let allFilled = true
       inputs.forEach(function (input) {
         if (input.value === '') {
+          console.log('input', input)
           allFilled = false
         }
       })
-
-      if (allFilled) {
+      // allFilled = true
+      // console.log('allFilled', allFilled)
+      // console.log('test condition', recaptchaFilled && allFilled)
+      if (recaptchaFilled && allFilled) {
         submitButton.disabled = false
         submitButton.classList.remove('cursor-not-allowed')
       } else {
         submitButton.disabled = true
         submitButton.classList.add('cursor-not-allowed')
       }
-    })
+    }, 3000)
   })
 
   function setMaxFileSizeMB(maxSize) {
