@@ -20,5 +20,7 @@ uploads/
 .env
 
 # ignore db
-<<<<<<< Updated upstream
 *.db
+
+flask_session/
+```

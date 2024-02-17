@@ -102,8 +102,38 @@
         // web scripto -> 2 approaches: generate random array buffer value or use randomUUID
         return window.crypto.randomUUID()
       }
-      submitButton.addEventListener('click', (e) => {
+
+      async function verifyRecaptcha(response) {
+        // TO-DO: verify reCAPTCHA
+        /*
+        get recaptcha secret key from server
+        
+        */
+        async function verifyRecaptcha(response) {
+          let res_captcha_server = await fetch('/recaptcha')
+          secret = await res_captcha_server.json()
+          const res_captcha_gg = await fetch('https://www.google.com/recaptcha/api/siteverify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              secret,
+              response
+            })
+          })
+          const result = await res_captcha_gg.json()
+          return result?.success
+        }
+
+      }
+      submitButton.addEventListener('click', async (e) => {
         e.preventDefault()
+        // when submit button is clicked, verify reCAPTCHA before uploading files
+        if (await verifyRecaptcha(grecaptcha.getResponse()) === false) {
+          // show error message
+          alert('error', 'Xác thực reCAPTCHA thất bại! Vui lòng thử lại sau 2 phút.')
+          return
+        }
+
         // generate submit ID on frontend request
         let submitId = generateSubmitId();
         console.log('submit_id', submitId);
@@ -147,26 +177,26 @@
       => Solution: implement a custom retry mechanism
       */
       dz.on("sending", (file, xhr) => { // Use lambda, so this will refer to dropzone init()
-          xhr.onreadystatechange = () => {
-            if (xhr.readyState === 4) { // 4 means the request is done
-              if (xhr.status === 409) {
-                // Store the status code in the file object
-                dz.emit("error", file, "Whoops, file đã tồn tại trên hệ thống!");
-                dz.cancelUpload(file); // Stop the upload
-                // remove this file from queue after 5s
-                setTimeout(() => {
-                  // dz.removeFile(file);
-                  // reset queue
-                  dz.removeAllFiles();
-                }, 3000);
-              }
+        xhr.onreadystatechange = () => {
+          if (xhr.readyState === 4) { // 4 means the request is done
+            if (xhr.status === 409) {
+              // Store the status code in the file object
+              dz.emit("error", file, "Whoops, file đã tồn tại trên hệ thống!");
+              dz.cancelUpload(file); // Stop the upload
+              // remove this file from queue after 5s
+              setTimeout(() => {
+                // dz.removeFile(file);
+                // reset queue
+                dz.removeAllFiles();
+              }, 3000);
             }
           }
-        })
+        }
+      })
       // Add error handler for dropzone
       dz.on('error', (file, errorMessage) => {
-       
-        
+        dz.emit('error', file, errorMessage)
+
         // Add your code here to escape the error event after the condition is checked
         // ...
       })

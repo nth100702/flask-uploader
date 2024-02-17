@@ -66,8 +66,8 @@ def get_auth_response(auth_url):
     webbrowser.open(auth_url)  # redirects to /auth
 
 
-def get_token(app: ConfidentialClientApplication, auth_flow, auth_code, scopes=SCOPES):
-    result = app.acquire_token_by_auth_code_flow(auth_flow, auth_code, scopes)
+def get_token(app: ConfidentialClientApplication, auth_code_flow, auth_response):
+    result = app.acquire_token_by_auth_code_flow(auth_code_flow=auth_code_flow, auth_response=auth_response, scopes=SCOPES)
     access_token = result["access_token"]
     return access_token
 

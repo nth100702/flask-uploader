@@ -33,5 +33,4 @@ class Config(object):
     # SESSION_COOKIE_SECURE = True
     # SESSION_COOKIE_HTTPONLY = True
     # SESSION_COOKIE_SAMESITE = 'Strict' # 'Strict' means no cross-site cookies
-    SESSION_PERMANENT = False # session expires when browser is closed
     # PERMANENT_SESSION_LIFETIME = 3600 * 24 * 7  # 7 days
