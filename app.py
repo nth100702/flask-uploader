@@ -4,6 +4,7 @@ from wtforms import StringField, SelectField
 from wtforms.validators import DataRequired
 from werkzeug.utils import secure_filename
 from flask_sqlalchemy import SQLAlchemy
+
 # from flask_migrate import Migrate
 from ms_auth_delegated import (
     init_msal_app,
@@ -11,6 +12,7 @@ from ms_auth_delegated import (
     get_auth_response,
     get_token,
 )
+
 import os
 import requests
 from datetime import datetime
@@ -34,6 +36,7 @@ db = SQLAlchemy(app)
 auth_response = get_auth_response(auth_url)  # redirects to /auth
 
 # TO-DO: Setup logging => log to file for audit trail
+
 
 # /auth
 # The point of msgraph auth => get access_token
@@ -131,135 +134,16 @@ def handle_upload():
 
     recaptcha_response = request.form.get("g-recaptcha-response")
     if not verify_recaptcha(recaptcha_response):
-        raise Exception(
-            "Xác thực reCAPTCHA thất bại, vui lòng thử lại.", 400
-        )  # Return a client error with status code 400
+        return "Xác thực reCAPTCHA thất bại, vui lòng thử lại.", 400
+        # Return a client error with status code 400
 
     # Get msgraph_access_token, if not found, perform auth code flow again
     access_token = session.get("msgraph_access_token")
     # print('access token from /upload', access_token)
     if access_token is None:
         return redirect("/auth")
-
+    from helper import (get_user, get_submit_record, get_file_upload, get_first_chunk, add_chunked_file, reassemble_file, upload_smallfile_to_onedrive)
     # Utils
-    def reassemble_file(submit_dir, filename, dztotalchunkcount):
-        # Reassemble the file from the chunks
-        with open(os.path.join(submit_dir, filename), "wb") as output_file:
-            for i in range(dztotalchunkcount):
-                chunk_path = os.path.join(submit_dir, f"{filename}.part{i}")
-                with open(chunk_path, "rb") as chunk_file:
-                    output_file.write(chunk_file.read())
-                os.remove(chunk_path)  # Delete the chunk
-
-    def get_user(query: dict):
-        user = User.query.filter_by(**query).first()
-        if user is None:
-            user = User(**query)
-            db.session.add(user)
-            db.session.commit()
-            user = User.query.filter_by(**query).first()
-        return user
-
-    def get_submit_record(query: dict):
-        submit_record = SubmitRecord.query.filter_by(**query).first()
-        if submit_record is None:
-            submit_record = SubmitRecord(**query)
-            db.session.add(submit_record)
-            db.session.commit()
-            submit_record = SubmitRecord.query.filter_by(**query).first()
-        return submit_record
-
-    def get_file_upload(query: dict):
-        try:
-            file_upload = FileUpload.query.filter_by(**query).first()
-            if file_upload is None:
-                file_upload = FileUpload(**query)
-                db.session.add(file_upload)
-                db.session.commit()
-                file_upload = FileUpload.query.filter_by(**query).first()
-            return file_upload
-        except Exception as e:
-            # Handle the exception here
-            print(f"Error occurred in get_file_upload: {str(e)}")
-            return None
-
-    def get_first_chunk(dzuuid):
-        first_chunk = ChunkedFile.query.filter_by(dzuuid=dzuuid, dzchunksize=0).first()
-        return first_chunk
-
-    def upload_smallfile_to_onedrive(local_submit_dir: str, file_name: str):
-        # prep inputs
-        GRAPH_API_ENDPOINT = "https://graph.microsoft.com/v1.0"
-        access_token = session.get("msgraph_access_token")
-        print("access_token", access_token)
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json",
-        }
-        onedrive_data_fyi = (
-            {
-                "createdDateTime": "2024-02-07T02:41:10Z",
-                "eTag": '"{0E451124-1D58-4399-8B0C-E93622F58CFC},1"',
-                "id": "01E26M3MJECFCQ4WA5TFBYWDHJGYRPLDH4",
-                "lastModifiedDateTime": "2024-02-07T02:41:10Z",
-                "name": "GMD Thi Ảnh Đẹp 2024",
-                "webUrl": "https://gmdcorp-my.sharepoint.com/personal/mediamod_gemadept_com_vn/Documents/GMD%20Thi%20%E1%BA%A2nh%20%C4%90%E1%BA%B9p%202024",
-                "cTag": '"c:{0E451124-1D58-4399-8B0C-E93622F58CFC},0"',
-                "size": 0,
-                "createdBy": {
-                    "user": {
-                        "email": "mediamod@gemadept.com.vn",
-                        "id": "fee2b48b-f942-40a7-9e8a-54d78dbd8397",
-                        "displayName": "MediaMod",
-                    }
-                },
-                "lastModifiedBy": {
-                    "user": {
-                        "email": "mediamod@gemadept.com.vn",
-                        "id": "fee2b48b-f942-40a7-9e8a-54d78dbd8397",
-                        "displayName": "MediaMod",
-                    }
-                },
-                "parentReference": {
-                    "driveType": "business",
-                    "driveId": "b!BSMpwLx6u0q_b-Nt-1W-O7tis30oT8lEvvD4tylYPZ1oPotOMoVXT5wqC5MaOvrI",
-                    "id": "01E26M3MN6Y2GOVW7725BZO354PWSELRRZ",
-                    "name": "Documents",
-                    "path": "/drive/root:",
-                    "siteId": "c0292305-7abc-4abb-bf6f-e36dfb55be3b",
-                },
-                "fileSystemInfo": {
-                    "createdDateTime": "2024-02-07T02:41:10Z",
-                    "lastModifiedDateTime": "2024-02-07T02:41:10Z",
-                },
-                "folder": {"childCount": 0},
-            },
-        )
-        onedrive_target_folder_id = (
-            "01E26M3MJECFCQ4WA5TFBYWDHJGYRPLDH4"  # "Thi Anh Dep 2024"
-        )
-        onedrive_target_user_id = "fee2b48b-f942-40a7-9e8a-54d78dbd8397"  # MediaMod
-        ONEDRIVE_API_ENDPOINT = f"{GRAPH_API_ENDPOINT}/users/{onedrive_target_user_id}/drive/items/{onedrive_target_folder_id}"
-        # first check if folder exists, if not create it; onedrive_submit_dir = local_submit_dir
-        onedrive_submit_dir = local_submit_dir
-        res = requests.get(ONEDRIVE_API_ENDPOINT, headers=headers)
-        print("res, get all drive items", res.json())
-
-        with open(onedrive_submit_dir, "rb") as upload:
-            media_content = upload.read()
-        response = requests.put(
-            f"{GRAPH_API_ENDPOINT}/users/{onedrive_target_user_id}/drive/items/{onedrive_target_folder_id}:/{file_name}:/content",
-            headers=headers,
-            data=media_content,
-        )
-        print("uploading to onedrive", response.json())
-        # check if the file has been uploaded to OneDrive
-        if response.status_code == 200:
-            return True
-        else:
-            return False
-
-    # upload large file to OneDrive
 
     try:
         submit_dir = os.path.join(
@@ -300,7 +184,9 @@ def handle_upload():
         file_upload = get_file_upload(file_upload_query)
         # print("file_upload by direct query", file_upload)
 
-        # Before saving the chunk, check if the FILE already exists
+        print('filename', filename)
+        # Before saving the chunk, check if the FILE already exists by the SAME name
+        """Bad code!!!"""
         if os.path.exists(os.path.join(submit_dir, filename)):
             raise FileExistsError(
                 "Whoops! File đã tồn tại, vui lòng thử lại với file khác"
@@ -309,7 +195,7 @@ def handle_upload():
             # First save the chunk to the server, then save the chunk metadata to the database
             chunk_path = os.path.join(submit_dir, f"{filename}.part{dzchunkindex}")
             dzfile.save(chunk_path)
-            chunked_file = ChunkedFile(
+            chunked_file = add_chunked_file(
                 dzuuid=dzuuid,
                 dzchunkindex=dzchunkindex,
                 dzchunksize=dzchunksize,
@@ -319,7 +205,6 @@ def handle_upload():
                 chunkpath=chunk_path,
                 file_upload=file_upload,  # Directly associate the ChunkedFile with the FileUpload
             )
-            db.session.add(chunked_file)
             # get current chunk count & increment the chunks received
             file_upload.chunks_received += 1
 
@@ -335,6 +220,7 @@ def handle_upload():
                 upload_smallfile_to_onedrive(
                     file_path=os.path.join(submit_dir, filename),
                     file_name=filename,
+                    msgraph_access_token=session.get("msgraph_access_token"),
                 )
                 # Update the file upload status
                 file_upload.upload_completed = True
@@ -349,11 +235,11 @@ def handle_upload():
 
     except Exception as e:
         # log.error(e)
-        if FileExistsError:
-            return make_response((str(e), 409))
-        # if error includes this string, it's a client error
-        if "Xác thực reCAPTCHA thất bại" in str(e):
-            return make_response((str(e), 400))
+        # if FileExistsError:
+        #     return make_response((str(e), 409))
+        # # if error includes this string, it's a client error
+        # if "Xác thực reCAPTCHA thất bại" in str(e):
+        #     return make_response((str(e), 400))
         return make_response(
             (
                 "Uh oh, lỗi server. Xin thử lại hoặc liên hệ IT tập đoàn để được hỗ trợ",

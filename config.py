@@ -28,3 +28,10 @@ class Config(object):
     RECAPTCHA_PUBLIC_KEY = '6Le1GXMpAAAAAI5Cz79kkAGSjY_pT5y6WXuwGSOV'
     RECAPTCHA_PRIVATE_KEY = '6Le1GXMpAAAAANq6l6JNnMcbb_y5ONMNhqLuGpo7'
     RECAPTCHA_OPTIONS = {'theme': 'white'}
+
+    # Session security
+    # SESSION_COOKIE_SECURE = True
+    # SESSION_COOKIE_HTTPONLY = True
+    # SESSION_COOKIE_SAMESITE = 'Strict' # 'Strict' means no cross-site cookies
+    SESSION_PERMANENT = False # session expires when browser is closed
+    # PERMANENT_SESSION_LIFETIME = 3600 * 24 * 7  # 7 days
