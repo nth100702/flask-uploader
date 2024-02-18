@@ -16,6 +16,7 @@ from ms_auth_delegated import (
 
 import os
 import requests
+import logging
 from datetime import datetime
 
 # setup msal
@@ -27,7 +28,11 @@ app = Flask(__name__)
 # loads configuration from config.py
 app.config.from_object("config.Config")
 # set up flask logging
+# TO-do: setup logging, https://flask.palletsprojects.com/en/2.3.x/logging/
+# log to file for audit trail
 log = app.logger
+logging.basicConfig(filename="app.log", level=logging.DEBUG)
+
 
 # setup sqlalchemy
 db = SQLAlchemy(app)
@@ -37,13 +42,15 @@ db = SQLAlchemy(app)
 flask_session will try to create a new instance of slqalchemy (aka. session interface) => error
 Solution: Pass the db instance to flask_session to use the existing db instance instead
 """
-app.config["SESSION_TYPE"] = "filesystem" # always aim for simplicity...
+app.config["SESSION_TYPE"] = "filesystem"  # always aim for simplicity...
 
 """
 By default, flask_session does NOT encrypt session data
     If you want to encrypt them, you need to implement yourself by manipulating flask_session SessionInterface => Unnecessary complexity...
 """
-Session(app) # after this init, flask session now becomes server-side (uses session as usual)
+Session(
+    app
+)  # after this init, flask session now becomes server-side (uses session as usual)
 # from helper import clear_session
 # clear_session() # clear session on each app start
 # continue setup msal
@@ -68,14 +75,14 @@ def auth():
         we're using sqlalchemy to store session data, hence we need to clear the db record instead
     """
     # if auth_response is None, get it from the request args
-    if (
-        request.args.get("code") is not None
-    ):
+    if request.args.get("code") is not None:
         # webbrowser.open(auth_url)
         auth_response = request.args
         # save auth_response to flask session
         session["msgraph_auth_response"] = auth_response
     else:
+        # log
+        log.error("Authorization code not found")
         # response with auth error
         return make_response(
             (
@@ -119,9 +126,18 @@ def show_upload_form():
 
     return render_template("upload.html", form=EntryForm())
 
+
 @app.route("/recaptcha", methods=["GET"])
 def return_recaptchakey():
+    # Check if the request is coming from localhost
+    if (
+        request.remote_addr != "127.0.0.1"
+    ):  # noted that if you're using a reverse proxy, the remote_addr will be the proxy server's IP; best practice would be configure nginx to check if a request is coming from localhost
+        # log
+        log.error(f"Unauthorized request to /recaptcha from {request.remote_addr}")
+        return "Unauthorized", 401
     return make_response((app.config["RECAPTCHA_PRIVATE_KEY"], 200))
+
 
 @app.route("/upload", methods=["POST"])
 def handle_upload():
@@ -151,28 +167,6 @@ def handle_upload():
         reCAPTCHA v2 tokens expire after 2 minutes. If your file upload takes longer than this, the token will be invalid by the time it's verified.
             as a result, some large files MAY NEVER BE UPLOADED due to this time limit...
     """
-    # validate recaptcha
-    # async def verify_recaptcha(response):
-    #     data = {"secret": app.config["RECAPTCHA_PRIVATE_KEY"], "response": response}
-    #     r = requests.post("https://www.google.com/recaptcha/api/siteverify", data=data)
-    #     result = r.json()
-    #     return result.get("success")
-
-    # recaptcha_response = request.form.get("g-recaptcha-response")
-
-    # # Create an event loop
-    # loop = asyncio.new_event_loop()
-    # # Set the new event loop as the current event loop
-    # asyncio.set_event_loop(loop)
-
-    # # Define a coroutine function to handle the recaptcha verification
-    # async def handle_recaptcha():
-    #     if not await verify_recaptcha(recaptcha_response):
-    #         raise Exception("Xác thực reCAPTCHA thất bại")
-
-    # Run the coroutine function in the event loop
-    # loop.run_until_complete(handle_recaptcha())
-
 
     """
     To avoid flask session inconsistency (each request => !same session...) => Use server-side session
@@ -180,7 +174,7 @@ def handle_upload():
     To use server-side session (e.g. for storing access_token), install flask-session
         Implement server-side session (data stored in server's memory via a traditional database: sql / cache db: redis, memcached)
     """
-    print('getting access token from /upload', session.get("msgraph_access_token"))
+    print("getting access token from /upload", session.get("msgraph_access_token"))
     # Get msgraph_access_token, if not found, perform auth code flow again
     access_token = session.get("msgraph_access_token")
     # print('access token from /upload', access_token)
@@ -194,6 +188,7 @@ def handle_upload():
         is_first_chunk,
         add_chunked_file,
         file_exist_check,
+        save_chunk,
         reassemble_file,
         upload_smallfile_to_onedrive,
     )
@@ -252,20 +247,22 @@ def handle_upload():
                 temp dir will be removed once file is reassembled
             each chunk is named as {filename}_{dzchunkindex}.part
         """
-        # First save the chunk to the server, then save the chunk metadata to the database
         filename_noextension = os.path.splitext(filename)[0]
         chunk_filename = f"{filename_noextension}_{dzchunkindex}.part"
         chunk_path = os.path.join(submit_dir, "temp", chunk_filename)
 
-        def save_chunk(chunk_content, chunk_path):
-            try:
-                with open(
-                    chunk_path, "wb"
-                ) as f:  # std & pythonic way to save files to disk; other implementation: dzfile.save(chunk_path) based on flask's werkzeug fileStorage object
-                    f.write(chunk_content.read())
-            except Exception as e:
-                print(f"Error occurred while saving chunk to disk: {str(e)}")
-
+        # Before saving the chunk, better to check if it's already saved
+        """
+        If you returns an error response here, dz will begin retry sending the same chunk again?
+        """
+        if file_exist_check(submit_dir, "temp", chunk_filename):
+            return make_response(
+                (
+                    "Whoops! Chunk đã tồn tại, vui lòng thử lại với chunk khác",
+                    409,
+                )
+            )
+        # First save the chunk to the server, then save the chunk metadata to the database
         save_chunk(dzfile, chunk_path)
         # Save the chunk metadata to the database
         add_chunked_file(
@@ -291,26 +288,18 @@ def handle_upload():
             ):
                 # update db
                 file_upload.file_reassembled = True
-                submit_record.all_files_received = True
-            # Upload the file to OneDrive
-            # upload_smallfile_to_onedrive(
-            #     file_path=os.path.join(submit_dir, filename),
-            #     file_name=filename,
-            #     msgraph_access_token=session.get("msgraph_access_token"),
-            # )
-            # Update the file upload status
-            # file_upload.upload_completed = True
-            # Update the submit record status
-            # submit_record.all_files_uploaded = True
-
+                # keep track how many files are associated with a submit record
+                submit_record.files_received += 1
+    
         # Commit the session once, at the end
+        # after all files are received, commit the session; uploading to OneDrive will be handled in a separate route
         db.session.commit()
-        # Redirect to the success page
-        return make_response(("Woohoo! File đã upload thành công!", 200))
-        # return redirect("/success")
-
+        # Render success page & end the user's session
+        return make_response(render_template("success.html"), 200)
     except Exception as e:
         # log.error(e)
+        # write all errors to log
+        log.error(f"Error occurred in /upload: {str(e)}")
         if FileExistsError:
             return make_response((str(e), 409))
         # if error includes this string, it's a client error
@@ -323,12 +312,28 @@ def handle_upload():
             )
         )
 
+"""
+Precepts: Separation of concerns
+    2 key roles of this app: accepting file uploads from the frontend & uploading files to OneDrive via MSGraph API
+Idea: Configure flask to run a scheduled task to upload files to OneDrive (once every hour)
+    - This way, the frontend will not be blocked by the file upload process
+    - The frontend will only be responsible for sending files to the server
+    - The server will be responsible for uploading files to OneDrive
+"""
 
-# /success route
-@app.route("/success")
-def success():
-    return render_template("success.html")
-
+@app.route("/onedrive", methods=["POST"])
+def handle_onedrive_upload():
+                # Upload the file to OneDrive
+            # upload_smallfile_to_onedrive(
+            #     file_path=os.path.join(submit_dir, filename),
+            #     file_name=filename,
+            #     msgraph_access_token=session.get("msgraph_access_token"),
+            # )
+            # Update the file upload status
+            # file_upload.upload_completed = True
+            # Update the submit record status
+            # submit_record.all_files_uploaded = True
+    return ""
 
 if __name__ == "__main__":
     with app.app_context():

@@ -3,6 +3,7 @@ from app import db
 import requests, os
 import shutil
 
+
 # database helpers
 def get_user(query: dict):
     try:
@@ -84,6 +85,14 @@ Database errors should be handled independently by each helper function
 """
 
 
+def save_chunk(chunk_content, chunk_path):
+    # errors are handled in the main app /upload
+    with open(
+        chunk_path, "wb"
+    ) as f:  # std & pythonic way to save files to disk; other implementation: dzfile.save(chunk_path) based on flask's werkzeug fileStorage object
+        f.write(chunk_content.read())
+
+
 def reassemble_file(submit_dir: str, filename: str, dztotalchunkcount):
     # prep inputs
     file_path = os.path.join(submit_dir, filename)
@@ -108,8 +117,6 @@ def reassemble_file(submit_dir: str, filename: str, dztotalchunkcount):
     # check if the file has been reassembled
     if not file_exist_check(file_path):
         raise Exception(f"Oops! Critical error occurred while reassembling {filename}!")
-
-    # update db records
 
     # remove temp dir
     _clean_up()

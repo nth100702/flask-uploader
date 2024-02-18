@@ -64,7 +64,9 @@ class FileUpload(db.Model):
 class SubmitRecord(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     submit_id_frontend = db.Column(db.String(100), nullable=False)
-    all_files_received = db.Column(db.Boolean, default=False) # local
+    files_received = db.Column(db.Integer, nullable=False, default=0)
+    # all_files_received = db.Column(db.Boolean, default=False) # local
+    files_uploaded = db.Column(db.Integer, nullable=False, default=0)
     all_files_uploaded = db.Column(db.Boolean, default=False) # onedrive
     created_at = db.Column(db.DateTime, nullable=False, default=now())
     # each submit record has one submitter
