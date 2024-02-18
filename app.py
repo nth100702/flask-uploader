@@ -5,6 +5,7 @@ from wtforms.validators import DataRequired
 from werkzeug.utils import secure_filename
 from flask_sqlalchemy import SQLAlchemy
 from flask_session import Session
+from flask_migrate import Migrate
 
 # from flask_migrate import Migrate
 from ms_auth_delegated import (
@@ -14,9 +15,8 @@ from ms_auth_delegated import (
     get_token,
 )
 
-import os
+import os, logging
 import requests
-import logging
 from datetime import datetime
 
 # setup msal
@@ -31,12 +31,12 @@ app.config.from_object("config.Config")
 # TO-do: setup logging, https://flask.palletsprojects.com/en/2.3.x/logging/
 # log to file for audit trail
 log = app.logger
-logging.basicConfig(filename="app.log", level=logging.DEBUG)
 
+debug_log = logging.basicConfig(filename="app.log", level=logging.INFO)
 
 # setup sqlalchemy
 db = SQLAlchemy(app)
-# migrate = Migrate(app, db)
+migrate = Migrate(app, db)
 # setup flask-session, also refers to config.py for session settings
 """
 flask_session will try to create a new instance of slqalchemy (aka. session interface) => error
@@ -290,7 +290,7 @@ def handle_upload():
                 file_upload.file_reassembled = True
                 # keep track how many files are associated with a submit record
                 submit_record.files_received += 1
-    
+
         # Commit the session once, at the end
         # after all files are received, commit the session; uploading to OneDrive will be handled in a separate route
         db.session.commit()
@@ -312,6 +312,7 @@ def handle_upload():
             )
         )
 
+
 """
 Precepts: Separation of concerns
     2 key roles of this app: accepting file uploads from the frontend & uploading files to OneDrive via MSGraph API
@@ -321,19 +322,21 @@ Idea: Configure flask to run a scheduled task to upload files to OneDrive (once 
     - The server will be responsible for uploading files to OneDrive
 """
 
+
 @app.route("/onedrive", methods=["POST"])
 def handle_onedrive_upload():
-                # Upload the file to OneDrive
-            # upload_smallfile_to_onedrive(
-            #     file_path=os.path.join(submit_dir, filename),
-            #     file_name=filename,
-            #     msgraph_access_token=session.get("msgraph_access_token"),
-            # )
-            # Update the file upload status
-            # file_upload.upload_completed = True
-            # Update the submit record status
-            # submit_record.all_files_uploaded = True
+    # Upload the file to OneDrive
+    # upload_smallfile_to_onedrive(
+    #     file_path=os.path.join(submit_dir, filename),
+    #     file_name=filename,
+    #     msgraph_access_token=session.get("msgraph_access_token"),
+    # )
+    # Update the file upload status
+    # file_upload.upload_completed = True
+    # Update the submit record status
+    # submit_record.all_files_uploaded = True
     return ""
+
 
 if __name__ == "__main__":
     with app.app_context():

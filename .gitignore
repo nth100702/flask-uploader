@@ -23,4 +23,6 @@ uploads/
 *.db
 
 flask_session/
-```
+
+# ignore logs
+*.log

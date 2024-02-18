@@ -20,6 +20,9 @@ class Config(object):
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # Uploader
+    # create uploads folder if it doesn't exist
+    if not os.path.exists(os.path.join(basedir, 'uploads')):
+        os.mkdir(os.path.join(basedir, 'uploads'))
     UPLOAD_FOLDER = 'uploads'
     ALLOWED_EXTENSIONS = {'doc', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
 
