@@ -190,6 +190,7 @@ def handle_upload():
         file_exist_check,
         save_chunk,
         reassemble_file,
+        remove_duplicated_chunks,
         upload_smallfile_to_onedrive,
     )
 
@@ -237,6 +238,8 @@ def handle_upload():
         """
 
         if file_exist_check(submit_dir, filename):
+            # remove duplicated chunks
+            remove_duplicated_chunks(submit_dir, filename, file_upload.chunks_received)
             raise FileExistsError(
                 "Whoops! File đã tồn tại, vui lòng thử lại với file khác"
             )

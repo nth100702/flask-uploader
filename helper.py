@@ -92,6 +92,16 @@ def save_chunk(chunk_content, chunk_path):
     ) as f:  # std & pythonic way to save files to disk; other implementation: dzfile.save(chunk_path) based on flask's werkzeug fileStorage object
         f.write(chunk_content.read())
 
+def remove_duplicated_chunks(submit_dir: str, filename: str, dztotalchunkcount):
+    filename_noextension = os.path.splitext(filename)[0]
+    # remove duplicated chunks
+    for i in range(dztotalchunkcount):
+        chunk_filename = f"{filename_noextension}_{i}.part"
+        chunk_path = os.path.join(submit_dir, "temp", chunk_filename)
+        if file_exist_check(chunk_path):
+            os.remove(chunk_path)
+    return True
+
 
 def reassemble_file(submit_dir: str, filename: str, dztotalchunkcount):
     # prep inputs
