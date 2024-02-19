@@ -37,3 +37,6 @@ class Config(object):
     # SESSION_COOKIE_HTTPONLY = True
     # SESSION_COOKIE_SAMESITE = 'Strict' # 'Strict' means no cross-site cookies
     # PERMANENT_SESSION_LIFETIME = 3600 * 24 * 7  # 7 days
+    SESSION_COOKIE_SECURE=True
+    SESSION_COOKIE_HTTPONLY=True
+    SESSION_COOKIE_SAMESITE='Lax'

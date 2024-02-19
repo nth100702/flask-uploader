@@ -2,16 +2,11 @@
 <!-- <div class="col g-3"> -->
 <div class="flex flex-col items-center">
   <div
-    class="flex flex-col items-center max-w-sm p-6 bg-white border border-gray-200 rounded-lg shadow hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-gray-700"
-  >
+    class="flex flex-col items-center max-w-sm p-6 bg-white border border-gray-200 rounded-lg shadow hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-gray-700">
     <div class="">
-      <form
-        method="POST"
-        action="/upload"
+      <form method="POST" action="/upload"
         class="dropzone dz-clickable block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400"
-        id="dropper"
-        enctype="multipart/form-data"
-      >
+        id="dropper" enctype="multipart/form-data">
         {{ form.hidden_tag() }}
         <div class="form-group row">
           {{ form.ma_nhan_vien.label(class="form-control-label") }} {{
@@ -33,18 +28,14 @@
       </form>
     </div>
     <div class="">
-      <button
-        type="submit"
-        id="submitBtn"
-        class="text-white items-center bg-gradient-to-r from-cyan-500 to-blue-500 hover:bg-gradient-to-bl focus:ring-4 focus:outline-none focus:ring-cyan-300 dark:focus:ring-cyan-800 font-medium rounded-lg text-sm px-5 py-2.5 text-center mt-4"
-      >
+      <button type="submit" id="submitBtn"
+        class="text-white items-center bg-gradient-to-r from-cyan-500 to-blue-500 hover:bg-gradient-to-bl focus:ring-4 focus:outline-none focus:ring-cyan-300 dark:focus:ring-cyan-800 font-medium rounded-lg text-sm px-5 py-2.5 text-center mt-4">
         Nộp bài dự thi
       </button>
     </div>
   </div>
-  {% include 'notif.html' %}
 </div>
-<script type="application/javascript">
+<script type="application/javascript" nonce="{{ nonce }}">
   // disable submit button initially, after DOM is fully loaded
   document.addEventListener('DOMContentLoaded', (event) => {
     // check if all entries fields are filled
@@ -68,9 +59,6 @@
           allFilled = false
         }
       })
-      // allFilled = true
-      // console.log('allFilled', allFilled)
-      // console.log('test condition', recaptchaFilled && allFilled)
       if (recaptchaFilled && allFilled) {
         submitButton.disabled = false
         submitButton.classList.remove('cursor-not-allowed')
@@ -79,157 +67,150 @@
         submitButton.classList.add('cursor-not-allowed')
       }
     }, 3000)
-  })
+    Dropzone.options.dropper = {
+      paramName: 'file',
+      // disable auto processing (uploading) of dropped files => submit only when entry fields are filled
+      autoProcessQueue: false,
+      init: function () {
+        const dz = this
+        // Has to register custom submit handler for dropzone within init function as required by the declarative approach
+        let submitButton = document.querySelector('#submitBtn')
 
-  function checkFileSizeLimit(file) {
-    // 50MB for photos, 500MB for videos
-    photoMaxSize = 50 * 1024 * 1024 // 50MB in bytes
-    videoMaxSize = 500 * 1024 * 1024 // 500MB in bytes
-    textMaxSize = 5 * 1024 * 1024 // 5MB in bytes
-    // check file type
-    if (file.type.includes('image')) {
-      if (file.size > photoMaxSize) {
-        throw new Error(`Photo lớn hơn giới hạn 50MB`)
-      }
-    } else if (file.type.includes('video')) {
-      if (file.size > videoMaxSize) {
-        throw new Error(`Video lớn hơn giới hạn 500MB`)
-      }
-    } else {
-      if (file.size > textMaxSize) {
-        throw new Error(`Văn bản lớn hơn giới hạn 5MB`)
-      }
-    }
-    return true
-  }
-  // dropzone config
-  Dropzone.options.dropper = {
-    paramName: 'file',
-    // disable auto processing (uploading) of dropped files => submit only when entry fields are filled
-    autoProcessQueue: false,
-    init: function () {
-      const dz = this
-      // Has to register custom submit handler for dropzone within init function as required by the declarative approach
-      let submitButton = document.querySelector('#submitBtn')
+        function generateSubmitId() {
+          // to generate IDs, avoid using Math.random() => security risk
+          // use Web Crypto API instead, https://developer.mozilla.org/en-US/docs/Web/API/Crypto/getRandomValues
+          // web scripto -> 2 approaches: generate random array buffer value or use randomUUID
+          return window.crypto.randomUUID()
+        }
 
-      function generateSubmitId() {
-        // to generate IDs, avoid using Math.random() => security risk
-        // use Web Crypto API instead, https://developer.mozilla.org/en-US/docs/Web/API/Crypto/getRandomValues
-        // web scripto -> 2 approaches: generate random array buffer value or use randomUUID
-        return window.crypto.randomUUID()
-      }
-
-      async function verifyRecaptcha(response) {
-        /*
-        get recaptcha secret key from server
-        */
         async function verifyRecaptcha(response) {
-          let res_captcha_server = await fetch('/recaptcha')
-          secret = await res_captcha_server.json()
-          const res_captcha_gg = await fetch(
-            'https://www.google.com/recaptcha/api/siteverify',
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                secret,
-                response,
-              }),
-            }
-          )
-          const result = await res_captcha_gg.json()
-          return result?.success
-        }
-      }
-      submitButton.addEventListener('click', async (e) => {
-        e.preventDefault()
-        // when submit button is clicked, verify reCAPTCHA before uploading files
-        if ((await verifyRecaptcha(grecaptcha.getResponse())) === false) {
-          // show error message
-          alert(
-            'error',
-            'Xác thực reCAPTCHA thất bại! Vui lòng thử lại sau 2 phút.'
-          )
-          return
-        }
-
-        // generate submit ID on frontend request
-        let submitId = generateSubmitId()
-        console.log('submit_id', submitId)
-        document.getElementById('submit_id').value = submitId
-        // Process the queue => upload files
-        this.processQueue()
-        // redirects to /success upon successful upload
-      })
-
-      // IMPORTANT: Only accepts valid filenames, else remove file from dropzone
-      // fileadded event handler
-      dz.on('addedfile', (file) => {
-        try {
-          if (checkFileSizeLimit(file)) {
-            console.log('Ok, file size & type are within limit')
+          /*
+          get recaptcha secret key from server
+          */
+          async function verifyRecaptcha(response) {
+            let res_captcha_server = await fetch('/recaptcha')
+            secret = await res_captcha_server.json()
+            const res_captcha_gg = await fetch(
+              'https://www.google.com/recaptcha/api/siteverify',
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  secret,
+                  response,
+                }),
+              }
+            )
+            const result = await res_captcha_gg.json()
+            return result?.success
           }
-        } catch (error) {
-          dz.emit('error', file, error.message)
-          setTimeout(() => {
+        }
+        submitButton.addEventListener('click', async (e) => {
+          e.preventDefault()
+          // when submit button is clicked, verify reCAPTCHA before uploading files
+          if ((await verifyRecaptcha(grecaptcha.getResponse())) === false) {
+            // show error message
+            alert(
+              'error',
+              'Xác thực reCAPTCHA thất bại! Vui lòng thử lại sau 2 phút.'
+            )
+            return
+          }
+
+          // generate submit ID on frontend request
+          let submitId = generateSubmitId()
+          console.log('submit_id', submitId)
+          document.getElementById('submit_id').value = submitId
+          // Process the queue => upload files
+          this.processQueue()
+          // redirects to /success upon successful upload
+        })
+
+        // IMPORTANT: Only accepts valid filenames, else remove file from dropzone
+        // fileadded event handler
+        dz.on('addedfile', (file) => {
+          try {
+            if (checkFileSizeLimit(file)) {
+              console.log('Ok, file size & type are within limit')
+            }
+          } catch (error) {
+            dz.emit('error', file, error.message)
+            setTimeout(() => {
+              dz.removeFile(file)
+            }, 5000)
+          }
+        })
+        /*
+        Dz has a limitation that its retry mechanism doesn't provide a built-in way to stop retrying for a specific file based on the server's response.
+        Using on "sending" & xhr.onreadystatechange only works for the first time, but not for the subsequent retries.
+        => Solution: implement a custom retry mechanism
+        */
+        // Add error handler for dropzone
+        dz.on('error', (file, errorMessage) => {
+          dz.emit(
+            'error',
+            file,
+            `${errorMessage}`
+          )
+          setTimeout((file) => {
             dz.removeFile(file)
           }, 5000)
-        }
-      })
-      /*
-      Dz has a limitation that its retry mechanism doesn't provide a built-in way to stop retrying for a specific file based on the server's response.
-      Using on "sending" & xhr.onreadystatechange only works for the first time, but not for the subsequent retries.
-      => Solution: implement a custom retry mechanism
-      */
-      // Add error handler for dropzone
-      dz.on('error', (file, errorMessage) => {
-        dz.emit(
-          'error',
-          file,
-          `${errorMessage}`
-        )
-        setTimeout(() => {
-          dz.removeFile(file)
-        }, 5000)
-      })
+        })
 
-      // if (xhr.status === 409) {
-      //   // Display message to user
-      //   this.cancelUpload(file); // Stop the upload
-      //   this.emit("error", file, "Whoops, file đã tồn tại trên hệ thống!");
-      //   // remove this file from queue
-      //   // this.removeFile(file);
-      //   // remove this file after 5s
-      //   setTimeout(() => {
-      //     this.removeFile(file);
-      //   }, 5000);
-      // }
-    },
-    // chunk upload configs
-    chunking: true,
-    forceChunking: true, // always use chunking (for simplicity's sake)
-    chunkSize: 327680 * 16, // ~ 5.2mb, in bytes: 1,000,000 bytes = 1MB, MS Graph API limits chunk size to be multiples of 327,680 bytes, https://learn.microsoft.com/en-us/graph/api/driveitem-createuploadsession?view=graph-rest-1.0#upload-bytes-to-the-upload-session
-    // parallelChunkUploads: true, // default: Only 2 files are uploaded in parallel
-    retryChunks: true,
-    retryChunksLimit: 4,
-    url: '/upload',
-    // Each submit event => upload 8 files in parallel
-    parallelUploads: 8,
-    maxFiles: 16,
-    maxFilesize: 500,
-    // accepts images, video, and text formats
-    acceptedFiles:
-      '.png, .jpg, .jpeg, .gif, .mp4, .avi, .mov, .pdf, .doc, .docx', // avoid .txt (text files) which includes scripts etc.
-    dictDefaultMessage: 'Kéo thả file vào đây hoặc click để chọn file',
-    dictFileTooBig:
-      'File quá lớn ({{filesize}}MB). Kích thước tối đa: {{maxFilesize}}MB.',
-    dictInvalidFileType: 'Chỉ chấp nhận {{acceptedFiles}}',
-    dictResponseError: 'Lỗi server',
-    dictCancelUpload: 'Hủy',
-    dictCancelUploadConfirmation: 'Bạn có chắc chắn muốn hủy upload?',
-    dictRemoveFile: 'Xóa',
-    dictFileTooBig: 'File quá lớn',
-  }
+        // if (xhr.status === 409) {
+        //   // Display message to user
+        //   this.cancelUpload(file); // Stop the upload
+        //   this.emit("error", file, "Whoops, file đã tồn tại trên hệ thống!");
+        //   // remove this file from queue
+        //   // this.removeFile(file);
+        //   // remove this file after 5s
+        //   setTimeout(() => {
+        //     this.removeFile(file);
+        //   }, 5000);
+        // }
+      },
+      // chunk upload configs
+      chunking: true,
+      forceChunking: true, // always use chunking (for simplicity's sake)
+      chunkSize: 327680 * 16, // ~ 5.2mb, in bytes: 1,000,000 bytes = 1MB, MS Graph API limits chunk size to be multiples of 327,680 bytes, https://learn.microsoft.com/en-us/graph/api/driveitem-createuploadsession?view=graph-rest-1.0#upload-bytes-to-the-upload-session
+      // parallelChunkUploads: true, // default: Only 2 files are uploaded in parallel
+      retryChunks: true,
+      retryChunksLimit: 4,
+      url: '/upload',
+      // Each submit event => upload 8 files in parallel
+      parallelUploads: 8,
+      maxFiles: 16,
+      maxFilesize: 500,
+      // accepts images, video, and text formats
+      acceptedFiles:
+        '.png, .jpg, .jpeg, .gif, .mp4, .avi, .mov, .pdf, .doc, .docx', // avoid .txt (text files) which includes scripts etc.
+      dictDefaultMessage: 'Kéo thả file vào đây hoặc click để chọn file',
+    }
+
+    function checkFileSizeLimit(file) {
+      // 50MB for photos, 500MB for videos
+      photoMaxSize = 50 * 1024 * 1024 // 50MB in bytes
+      videoMaxSize = 500 * 1024 * 1024 // 500MB in bytes
+      textMaxSize = 5 * 1024 * 1024 // 5MB in bytes
+      // check file type
+      if (file.type.includes('image')) {
+        if (file.size > photoMaxSize) {
+          throw new Error(`Photo lớn hơn giới hạn 50MB`)
+        }
+      } else if (file.type.includes('video')) {
+        if (file.size > videoMaxSize) {
+          throw new Error(`Video lớn hơn giới hạn 500MB`)
+        }
+      } else {
+        if (file.size > textMaxSize) {
+          throw new Error(`Văn bản lớn hơn giới hạn 5MB`)
+        }
+      }
+      return true
+    }
+  })
+
+  // dropzone config
 </script>
 
 {% endblock %}

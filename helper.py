@@ -1,8 +1,7 @@
 from models import User, SubmitRecord, FileUpload, ChunkedFile
-from app import db
+from app import db, log
 import requests, os
 import shutil
-
 
 # database helpers
 def get_user(query: dict):
@@ -12,6 +11,7 @@ def get_user(query: dict):
             user = User(**query)
             db.session.add(user)
             db.session.commit()
+            log.info(f"Inserted user to db")
             user = User.query.filter_by(**query).first()
         return user
     except Exception as e:
@@ -27,6 +27,7 @@ def get_submit_record(query: dict):
             submit_record = SubmitRecord(**query)
             db.session.add(submit_record)
             db.session.commit()
+            log.info(f"Inserted submit record to db")
             submit_record = SubmitRecord.query.filter_by(**query).first()
         return submit_record
     except Exception as e:
@@ -42,6 +43,7 @@ def get_file_upload(query: dict, new: bool = False):
             file_upload = FileUpload(**query)
             db.session.add(file_upload)
             db.session.commit()
+            log.info(f"Inserted file upload to db")
             file_upload = FileUpload.query.filter_by(**query).first()
         return file_upload
     except Exception as e:
@@ -60,6 +62,7 @@ def add_chunked_file(**args):
         chunked_file = ChunkedFile(**args)
         db.session.add(chunked_file)
         db.session.commit()
+        log.info(f"Inserted chunked file to db")
         return chunked_file
     except Exception as e:
         # Handle the exception here
@@ -72,7 +75,7 @@ def file_exist_check(*args):
     try:
         with open(filepath, "r"):
             return True
-    except FileNotFoundError:
+    except:
         return False
 
 
@@ -87,20 +90,24 @@ Database errors should be handled independently by each helper function
 
 def save_chunk(chunk_content, chunk_path):
     # errors are handled in the main app /upload
+    if chunk_content is None:
+        raise ValueError("Chunk content is empty")
     with open(
         chunk_path, "wb"
     ) as f:  # std & pythonic way to save files to disk; other implementation: dzfile.save(chunk_path) based on flask's werkzeug fileStorage object
         f.write(chunk_content.read())
+        log.info(f"Saved chunk to {chunk_path}")
 
-def remove_duplicated_chunks(submit_dir: str, filename: str, dztotalchunkcount):
-    filename_noextension = os.path.splitext(filename)[0]
-    # remove duplicated chunks
-    for i in range(dztotalchunkcount):
-        chunk_filename = f"{filename_noextension}_{i}.part"
-        chunk_path = os.path.join(submit_dir, "temp", chunk_filename)
-        if file_exist_check(chunk_path):
-            os.remove(chunk_path)
-    return True
+# def remove_duplicated_chunks(submit_dir: str, filename: str, chunks_received: int):
+#     filename_noextension = os.path.splitext(filename)[0]
+#     # remove duplicated chunks
+#     for i in range(chunks_received):
+#         chunk_filename = f"{filename_noextension}_{i}.part"
+#         chunk_path = os.path.join(submit_dir, "temp", chunk_filename)
+#         if file_exist_check(chunk_path):
+#             os.remove(chunk_path)
+#             log.info(f"Removed duplicated chunk: {chunk_filename}")
+#     return True
 
 
 def reassemble_file(submit_dir: str, filename: str, dztotalchunkcount):
@@ -122,8 +129,11 @@ def reassemble_file(submit_dir: str, filename: str, dztotalchunkcount):
             # check if the chunk exists
             if not os.path.exists(chunk_path):
                 raise FileNotFoundError(f"Missing {chunk_filename} at index {i}")
+            
             with open(chunk_path, "rb") as chunk_file:  # rb: read binary
                 output_file.write(chunk_file.read())
+                # log
+                log.info(f"Successfully reassembled {chunk_filename} to {file_path}")
     # check if the file has been reassembled
     if not file_exist_check(file_path):
         raise Exception(f"Oops! Critical error occurred while reassembling {filename}!")

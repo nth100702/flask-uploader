@@ -1,4 +1,5 @@
-from flask import Flask, make_response, render_template, redirect, request, session
+import base64
+from flask import Flask, make_response, render_template, g, request, session
 from flask_wtf import FlaskForm, RecaptchaField
 from wtforms import StringField, SelectField
 from wtforms.validators import DataRequired
@@ -16,7 +17,7 @@ from ms_auth_delegated import (
 )
 
 import os, logging
-import requests
+# import requests
 from datetime import datetime
 
 # setup msal
@@ -31,8 +32,7 @@ app.config.from_object("config.Config")
 # TO-do: setup logging, https://flask.palletsprojects.com/en/2.3.x/logging/
 # log to file for audit trail
 log = app.logger
-
-debug_log = logging.basicConfig(filename="app.log", level=logging.INFO)
+logging.basicConfig(filename="app.log", level=logging.INFO)
 
 # setup sqlalchemy
 db = SQLAlchemy(app)
@@ -56,8 +56,21 @@ Session(
 # continue setup msal
 auth_response = get_auth_response(auth_url)  # redirects to /auth
 
-# TO-DO: Setup logging => log to file for audit trail
+# setup security headers
+@app.before_request
+def prepare_request():
+    g.nonce = base64.b64encode(os.urandom(32)).decode("utf-8")
 
+@app.after_request
+def secure_flask(response):
+    response.headers['Content-Security-Policy'] = f"default-src 'self'; img-src 'self' data: https://www.gemadept.com.vn/img/nav/logo.png; script-src 'self' 'nonce-{g.nonce}' https://www.gstatic.com/recaptcha/releases/yiNW3R9jkyLVP5-EEZLDzUtA/recaptcha__en.js https://www.google.com/recaptcha/api.js https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.2.1/flowbite.min.js https://cdnjs.cloudflare.com/ajax/libs/dropzone/5.9.3/min/dropzone.min.js https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js; style-src 'self' https://cdnjs.cloudflare.com/ajax/libs/dropzone/5.9.3/dropzone.min.css https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css; frame-src 'self' https://www.google.com;"
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    response.set_cookie('username', 'flask', secure=True, httponly=True, samesite='Lax')
+    # cookie expires after 10 minutes
+    response.set_cookie('snakes', '3', max_age=600)
+    return response
 
 # /auth
 # The point of msgraph auth => get access_token
@@ -124,7 +137,7 @@ def show_upload_form():
         )
         recaptcha = RecaptchaField()
 
-    return render_template("upload.html", form=EntryForm())
+    return render_template("upload.html", form=EntryForm(), nonce=g.nonce)
 
 
 @app.route("/recaptcha", methods=["GET"])
@@ -174,9 +187,9 @@ def handle_upload():
     To use server-side session (e.g. for storing access_token), install flask-session
         Implement server-side session (data stored in server's memory via a traditional database: sql / cache db: redis, memcached)
     """
-    print("getting access token from /upload", session.get("msgraph_access_token"))
-    # Get msgraph_access_token, if not found, perform auth code flow again
-    access_token = session.get("msgraph_access_token")
+    # print("getting access token from /upload", session.get("msgraph_access_token"))
+    # # Get msgraph_access_token, if not found, perform auth code flow again
+    # access_token = session.get("msgraph_access_token")
     # print('access token from /upload', access_token)
     # if access_token is None:
     #     return redirect("/auth")
@@ -189,12 +202,8 @@ def handle_upload():
         add_chunked_file,
         file_exist_check,
         save_chunk,
-        reassemble_file,
-        remove_duplicated_chunks,
-        upload_smallfile_to_onedrive,
+        reassemble_file
     )
-
-    # Utils
 
     try:
 
@@ -230,19 +239,6 @@ def handle_upload():
         else:
             # if false, get the file_upload from the database
             file_upload = get_file_upload(file_upload_query)
-        """
-        filename => file uploaded from the frontend
-            for each request to /upload, the actual data is just a chunk of the file
-            hence, the filename is the same for all chunks
-        Solution: a robust check would be to actually read the file on disk
-        """
-
-        if file_exist_check(submit_dir, filename):
-            # remove duplicated chunks
-            remove_duplicated_chunks(submit_dir, filename, file_upload.chunks_received)
-            raise FileExistsError(
-                "Whoops! File đã tồn tại, vui lòng thử lại với file khác"
-            )
 
         """
         Save chunk (each chunk content is a dzfile in each request payload)
@@ -252,20 +248,21 @@ def handle_upload():
         """
         filename_noextension = os.path.splitext(filename)[0]
         chunk_filename = f"{filename_noextension}_{dzchunkindex}.part"
-        chunk_path = os.path.join(submit_dir, "temp", chunk_filename)
-
-        # Before saving the chunk, better to check if it's already saved
+        # create temp dir
+        temp_dir = os.path.join(submit_dir, "temp")
+        os.makedirs(temp_dir, exist_ok=True)
+        chunk_path = os.path.join(temp_dir, chunk_filename)
         """
-        If you returns an error response here, dz will begin retry sending the same chunk again?
+        Before saving the chunk, better to check if it's already saved
+            If chunk is already saved
+                Return a success response, skip to the next chunk
+            Else: continue processing the chunk
         """
-        if file_exist_check(submit_dir, "temp", chunk_filename):
-            return make_response(
-                (
-                    "Whoops! Chunk đã tồn tại, vui lòng thử lại với chunk khác",
-                    409,
-                )
-            )
+        if file_exist_check(temp_dir, chunk_filename):
+            log.info(f"Chunk already saved: {chunk_filename}")
+            return make_response("Chunk already saved", 200)
         # First save the chunk to the server, then save the chunk metadata to the database
+        # TO-DO: add retry mechanism to save_chunk, also handler for mising chunks etc.
         save_chunk(dzfile, chunk_path)
         # Save the chunk metadata to the database
         add_chunked_file(
