@@ -1,0 +1,17 @@
+name: "Build production"
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build_app:
+    runs-on: windows-2019
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python env
+        uses: actions/setup-python@v4
+        with: # Semantic version range syntax or exact version of a Python version
+          python-version: '3.11.8'
+      
+
